@@ -86,6 +86,12 @@ class UnreadEmail(models.Model):
             logger.error(f"Error decrypting password: {e}")
             return None
     
+    # Processing status
+    is_processed = models.BooleanField(
+        default=False,
+        help_text="Whether this submission has been processed"
+    )
+    
     # Provider information
     provider = models.CharField(
         max_length=100,  # Increased max_length to accommodate custom providers

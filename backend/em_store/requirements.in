@@ -1,0 +1,38 @@
+# Core Django
+Django==4.2.7
+python-dotenv==1.0.0
+gunicorn==21.2.0
+whitenoise==6.6.0
+psycopg2-binary==2.9.9
+dj-database-url==2.3.0
+
+# API and Authentication
+djangorestframework==3.15.1
+django-cors-headers==4.3.0
+drf-yasg==1.21.7
+dj-rest-auth==7.0.1
+django-allauth==65.9.0
+
+# Database
+psycopg2-binary==2.9.9
+asyncpg==0.30.0
+
+# Email and File Handling
+python-magic==0.4.27
+python-magic-bin==0.4.14; sys_platform == 'win32'
+python-multipart==0.0.9
+
+# Security
+cryptography==45.0.3
+pyjwt==2.8.0
+
+# Utilities
+python-dateutil==2.9.0.post0
+pytz==2024.1
+requests==2.32.3
+
+# Production
+uvicorn==0.27.1
+
+# API Documentation
+drf-spectacular==0.28.0
