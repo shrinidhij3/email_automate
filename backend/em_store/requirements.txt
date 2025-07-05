@@ -1,7 +1,7 @@
 # Core Python
 setuptools>=69.5.1
 
-# Core Django
+# Django and DB
 Django==4.2.7
 python-dotenv==1.0.0
 gunicorn==21.2.0
@@ -9,27 +9,27 @@ whitenoise==6.9.0
 psycopg[binary]==3.2.9
 dj-database-url==2.3.0
 
-# API and Authentication
+# REST API & Auth
 djangorestframework==3.15.1
+djangorestframework-simplejwt==5.3.1
 django-cors-headers==4.3.0
 dj-rest-auth==7.0.1
 django-allauth==0.54.0
 
-# Security
-cryptography==45.0.3
-pyjwt==2.8.0
-
-# Utilities
+# File uploads & utils
 python-dateutil==2.9.0.post0
 pytz==2025.1
 requests==2.32.3
 
-# API Documentation
+# API Documentation (choose one)
 drf-spectacular==0.28.0
-drf-yasg==1.21.7
 
-# Email and Communication
+# Email
 sendgrid==6.12.4
 
-# Development
+# Development tools
 django-extensions==3.2.3
+
+# Optional: for file/image handling (uncomment if needed)
+# Pillow==10.3.0
+# python-magic==0.4.27
