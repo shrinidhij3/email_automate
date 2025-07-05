@@ -20,6 +20,7 @@ django-allauth==0.54.0
 python-dateutil==2.9.0.post0
 pytz==2025.1
 requests==2.32.3
+cryptography==42.0.5
 
 # API Documentation
 drf-spectacular==0.28.0
@@ -30,6 +31,10 @@ sendgrid==6.12.4
 
 # Development tools
 django-extensions==3.2.3
+
+# File type detection
+python-magic-bin==0.4.14; sys_platform == 'win32'
+python-magic==0.4.27; sys_platform != 'win32'
 
 # Optional: for file/image handling (uncomment if needed)
 # Pillow==10.3.0
