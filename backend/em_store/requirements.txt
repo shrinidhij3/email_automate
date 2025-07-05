@@ -3,7 +3,7 @@ Django==4.2.7
 python-dotenv==1.0.0
 gunicorn==21.2.0
 whitenoise==6.9.0
-psycopg[binary]==3.2.1
+psycopg[binary]==3.2.9
 dj-database-url==2.3.0
 
 # API and Authentication
@@ -27,5 +27,5 @@ drf-spectacular==0.28.0
 # Email and Communication
 sendgrid==6.12.4
 
-# Development (optional)
+# Development
 django-extensions==3.2.3
