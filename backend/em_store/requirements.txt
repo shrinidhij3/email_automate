@@ -23,6 +23,7 @@ requests==2.32.3
 
 # API Documentation
 drf-spectacular==0.28.0
+drf-yasg==1.21.7
 
 # Email and Communication
 sendgrid==6.12.4
