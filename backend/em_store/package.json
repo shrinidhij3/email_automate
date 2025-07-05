@@ -1,0 +1,9 @@
+{
+  "name": "em-store",
+  "version": "1.0.0",
+  "description": "Database management for EM Store",
+  "main": "list-tables.js",
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}

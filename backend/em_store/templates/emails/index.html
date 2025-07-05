@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Management System</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem 0;
+            text-align: center;
+        }
+        h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        .content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 2rem;
+        }
+        .api-info {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+        }
+        .btn {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 1rem;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Email Management System</h1>
+            <p>Backend API Service</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="content">
+            <h2>Welcome to the Email Management System</h2>
+            <p>This is the backend service for the Email Management System. The API is running and ready to handle requests.</p>
+            
+            <div class="api-info">
+                <h3>API Endpoints</h3>
+                <ul>
+                    <li><strong>API Base URL:</strong> <code>/api/</code></li>
+                    <li><strong>Admin Interface:</strong> <a href="/admin/">/admin/</a></li>
+                    <li><strong>API Documentation:</strong> <a href="/api/docs/">/api/docs/</a> (if available)</li>
+                </ul>
+            </div>
+
+            <a href="/api/" class="btn">View API</a>
+            <a href="/admin/" class="btn">Admin Panel</a>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Email Management System. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

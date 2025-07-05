@@ -1,0 +1,300 @@
+/* Main container */
+.email-dashboard {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: calc(100vh - 4rem);
+}
+
+.email-dashboard h1 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 2rem;
+}
+
+/* Forms container */
+.forms-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+  margin: 2rem 0;
+  width: 100%;
+}
+
+/* Form section */
+.form-section {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  width: 100%;
+  max-width: 500px;
+  box-sizing: border-box;
+}
+
+.form-section:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.form-section h2 {
+  color: #4fa197;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+/* Form groups */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="file"] {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  color: #2c3e50; /* Ensure text color is dark enough */
+  transition: border-color 0.3s ease;
+  background-color: white;
+}
+
+/* Ensure text remains visible when input is focused or has value */
+.form-group input[type="text"]:focus,
+.form-group input[type="email"]:focus,
+.form-group input[type="text"],
+.form-group input[type="email"] {
+  color: #2c3e50 !important; /* Force text color to be visible */
+  caret-color: #4fa197; /* Custom cursor color */
+}
+
+/* Ensure placeholder text is visible but not too prominent */
+.form-group input::placeholder {
+  color: #95a5a6;
+  opacity: 1; /* Firefox */
+}
+
+.form-group input:-ms-input-placeholder { /* Internet Explorer 10-11 */
+  color: #95a5a6;
+}
+
+.form-group input::-ms-input-placeholder { /* Microsoft Edge */
+  color: #95a5a6;
+}
+
+.form-group input[type="file"] {
+  padding: 0.5rem 0;
+  border: 1px dashed #ddd;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.form-group input[type="file"]:hover {
+  border-color: #4fa197;
+  background-color: #f0f7f6;
+}
+
+.file-info {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #495057;
+  border-left: 3px solid #4fa197;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-info::before {
+  content: "📄";
+  font-size: 1.1em;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4fa197;
+  box-shadow: 0 0 0 2px rgba(79, 161, 151, 0.2);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.5rem;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+/* Submit button */
+.submit-btn {
+  background-color: #4fa197;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.2s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background-color: #3d827b;
+}
+
+.submit-btn:disabled {
+  background-color: #4fa197;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.submit-btn.loading:disabled {
+  position: relative;
+  color: transparent;
+}
+
+.submit-btn.loading:disabled::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  border: 3px solid transparent;
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  animation: button-loading-spinner 1s ease infinite;
+}
+
+@keyframes button-loading-spinner {
+  from {
+    transform: rotate(0turn);
+  }
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Message styles */
+.message {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  width: 100%;
+  max-width: 800px;
+  box-sizing: border-box;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.message.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* API Info Section */
+.api-info {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 800px;
+  box-sizing: border-box;
+}
+
+.api-info h3 {
+  color: #4fa197;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.api-info p {
+  margin: 0.5rem 0;
+  color: #495057;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .form-section {
+    max-width: 100%;
+    padding: 1.5rem;
+  }
+  
+  .email-dashboard {
+    padding: 1rem;
+  }
+  
+  .api-info {
+    padding: 1rem;
+  }
+}
+
+/* Loading state */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* File input styling */
+input[type="file"] {
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+  padding: 0.5rem 1rem;
+  background-color: #4fa197;
+  color: white;
+  border: 1px solid #3d7f78;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 1rem;
+  transition: all 0.3s ease;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background-color: #3d7f78;
+}

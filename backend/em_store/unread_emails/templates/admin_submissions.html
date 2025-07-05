@@ -1,0 +1,129 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .submission-card {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: #fff;
+    }
+    .submission-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    .attachment-list {
+        margin-top: 15px;
+    }
+    .attachment-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        background: #f9f9f9;
+        margin-bottom: 5px;
+        border-radius: 3px;
+    }
+    .btn-download {
+        padding: 3px 10px;
+        background: #417690;
+        color: white;
+        text-decoration: none;
+        border-radius: 3px;
+        font-size: 13px;
+    }
+    .btn-download:hover {
+        background: #205067;
+    }
+    .no-attachments {
+        color: #666;
+        font-style: italic;
+    }
+    .pagination {
+        margin-top: 20px;
+        text-align: center;
+    }
+    .pagination a, .pagination .current {
+        padding: 5px 10px;
+        margin: 0 2px;
+        border: 1px solid #ddd;
+        text-decoration: none;
+    }
+    .pagination .current {
+        background: #417690;
+        color: white;
+        border-color: #417690;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="module">
+    <h1>Email Submissions</h1>
+    
+    <div class="results">
+        {% for submission in submissions %}
+        <div class="submission-card">
+            <div class="submission-header">
+                <h3>Submission #{{ submission.id }}</h3>
+                <span class="date">{{ submission.created_at|date:"F j, Y H:i" }}</span>
+            </div>
+            
+            <div class="submission-details">
+                <p><strong>Name:</strong> {{ submission.name|default:"N/A" }}</p>
+                <p><strong>Email:</strong> {{ submission.email|default:"N/A" }}</p>
+                {% if submission.message %}
+                <p><strong>Message:</strong> {{ submission.message }}</p>
+                {% endif %}
+                
+                <div class="attachment-list">
+                    <p><strong>Attachments ({{ submission.attachments.count }}):</strong></p>
+                    {% if submission.attachments.all %}
+                        {% for attachment in submission.attachments.all %}
+                        <div class="attachment-item">
+                            <span>{{ attachment.original_filename }}</span>
+                            <a href="{% url 'download-attachment' attachment.id %}" class="btn-download">
+                                Download
+                            </a>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="no-attachments">No attachments</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <p>No submissions found.</p>
+        {% endfor %}
+    </div>
+    
+    {% if is_paginated %}
+    <div class="pagination">
+        <span class="step-links">
+            {% if page_obj.has_previous %}
+                <a href="?page=1">&laquo; first</a>
+                <a href="?page={{ page_obj.previous_page_number }}">previous</a>
+            {% endif %}
+            
+            <span class="current">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+            </span>
+            
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

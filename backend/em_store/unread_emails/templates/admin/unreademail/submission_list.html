@@ -1,0 +1,439 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" type="text/css" href="{% static "admin/css/changelists.css" %}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    body {
+        background-color: #f5f5f5;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    
+    #content {
+        margin: 20px 30px;
+        padding: 20px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .module h1, .module h2, .module h3 {
+        color: #333;
+    }
+    
+    .submission-card {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
+        overflow: hidden;
+    }
+    
+    .submission-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .submission-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 16px 20px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+    }
+    
+    .submission-header h3 {
+        margin: 0;
+        color: #2c3e50;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .submission-header .date {
+        color: #6c757d;
+        font-size: 14px;
+        background: rgba(255,255,255,0.7);
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 500;
+    }
+    
+    .submission-body {
+        padding: 20px;
+        background: #fff;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+    }
+    
+    .submission-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    
+    .detail-item {
+        margin-bottom: 8px;
+    }
+    
+    .detail-label {
+        font-weight: 600;
+        color: #495057;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+    
+    .detail-value {
+        color: #212529;
+        font-size: 15px;
+        word-break: break-word;
+    }
+    
+    .message-content {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin: 16px 0;
+        border-left: 4px solid #417690;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    
+    .attachment-list {
+        margin-top: 20px;
+    }
+    
+    .attachment-list h4 {
+        font-size: 15px;
+        color: #495057;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .attachment-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        background: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        transition: all 0.2s;
+    }
+    
+    .attachment-item:hover {
+        background: #e9ecef;
+        border-color: #ced4da;
+    }
+    
+    .attachment-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .attachment-icon {
+        color: #6c757d;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+    
+    .attachment-name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #212529;
+        font-size: 14px;
+    }
+    
+    .attachment-size {
+        color: #6c757d;
+        font-size: 12px;
+        margin-left: 8px;
+        white-space: nowrap;
+    }
+    
+    .btn-download {
+        background: #f0f0f0;
+        color: #000000;
+        padding: 6px 14px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+        white-space: nowrap;
+        margin-left: 12px;
+        border: 1px solid #d0d0d0;
+    }
+    
+    .btn-download:hover {
+        background: #2c5f7a;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .no-attachments {
+        color: #6c757d;
+        font-style: italic;
+        padding: 12px;
+        text-align: center;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px dashed #dee2e6;
+    }
+    
+    .pagination {
+        margin: 30px 0 20px;
+        text-align: center;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .pagination a, .pagination .this-page {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        height: 36px;
+        padding: 0 12px;
+        margin: 0 2px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #417690;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .pagination a:hover {
+        background: #f1f8ff;
+        border-color: #b3d7ff;
+    }
+    
+    .pagination .this-page {
+        background: #417690;
+        color: white;
+        border-color: #417690;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 48px;
+        color: #dee2e6;
+        margin-bottom: 16px;
+    }
+    
+    .empty-state p {
+        font-size: 16px;
+        margin: 8px 0 0;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        #content {
+            margin: 10px;
+            padding: 15px;
+        }
+        
+        .submission-details {
+            grid-template-columns: 1fr;
+        }
+        
+        .pagination {
+            gap: 4px;
+        }
+        
+        .pagination a, .pagination .this-page {
+            min-width: 32px;
+            height: 32px;
+            padding: 0 8px;
+            font-size: 13px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module" id="changelist">
+        <div class="changelist-form-container">
+            <div class="results">
+                <h1>{% block title %}<i class="fas fa-inbox"></i> Email Submissions{% endblock %}</h1>
+                
+                {% for submission in submissions %}
+                <div class="submission-card">
+                    <div class="submission-header">
+                        <h3><i class="fas fa-envelope"></i> Submission #{{ submission.id }}</h3>
+                        <span class="date">
+                            <i class="far fa-clock"></i> {{ submission.created_at|date:"M j, Y H:i" }}
+                        </span>
+                    </div>
+                    
+                    <div class="submission-body">
+                        <div class="submission-details">
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-user"></i> Name
+                                </div>
+                                <div class="detail-value">
+                                    {{ submission.name|default:"Not provided" }}
+                                </div>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-envelope"></i> Email
+                                </div>
+                                <div class="detail-value">
+                                    {% if submission.email %}
+                                        <a href="mailto:{{ submission.email }}">{{ submission.email }}</a>
+                                    {% else %}
+                                        Not provided
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            {% if submission.phone %}
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-phone"></i> Phone
+                                </div>
+                                <div class="detail-value">
+                                    {{ submission.phone }}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="far fa-calendar-alt"></i> Submitted
+                                </div>
+                                <div class="detail-value">
+                                    {{ submission.created_at|timesince }} ago
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {% if submission.message %}
+                        <div class="message-content">
+                            <div class="detail-label">
+                                <i class="fas fa-comment"></i> Message
+                            </div>
+                            <p>{{ submission.message|linebreaksbr }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="attachment-list">
+                            <h4><i class="fas fa-paperclip"></i> Attachments ({{ submission.attachments.count }})</h4>
+                            
+                            {% if submission.attachments.all %}
+                                {% for attachment in submission.attachments.all %}
+                                <div class="attachment-item">
+                                    <div class="attachment-info">
+                                        <span class="attachment-icon">
+                                            {% if attachment.content_type|slice:":5" == 'image' %}
+                                                <i class="far fa-image"></i>
+                                            {% elif 'pdf' in attachment.content_type %}
+                                                <i class="far fa-file-pdf"></i>
+                                            {% elif 'word' in attachment.content_type %}
+                                                <i class="far fa-file-word"></i>
+                                            {% elif 'excel' in attachment.content_type %}
+                                                <i class="far fa-file-excel"></i>
+                                            {% elif 'powerpoint' in attachment.content_type %}
+                                                <i class="far fa-file-powerpoint"></i>
+                                            {% elif 'zip' in attachment.content_type or 'compressed' in attachment.content_type %}
+                                                <i class="far fa-file-archive"></i>
+                                            {% else %}
+                                                <i class="far fa-file"></i>
+                                            {% endif %}
+                                        </span>
+                                        <span class="attachment-name" title="{{ attachment.original_filename }}">
+                                            {{ attachment.original_filename|truncatechars:40 }}
+                                        </span>
+                                        <span class="attachment-size">
+                                            {{ attachment.file_size|filesizeformat }}
+                                        </span>
+                                    </div>
+                                    <a href="{% url 'unread_emails:download-attachment' attachment.id %}" class="btn-download" title="Download">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="no-attachments">
+                                    <i class="far fa-folder-open"></i>
+                                    <p>No files attached</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-state">
+                    <i class="far fa-inbox"></i>
+                    <h3>No Submissions Yet</h3>
+                    <p>All caught up! There are no email submissions to display.</p>
+                </div>
+                {% endfor %}
+                
+                {% if is_paginated %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1" title="First page"><i class="fas fa-angle-double-left"></i></a>
+                        <a href="?page={{ page_obj.previous_page_number }}" title="Previous"><i class="fas fa-angle-left"></i></a>
+                    {% else %}
+                        <span class="disabled"><i class="fas fa-angle-double-left"></i></span>
+                        <span class="disabled"><i class="fas fa-angle-left"></i></span>
+                    {% endif %}
+                    
+                    {% for i in page_obj.paginator.page_range %}
+                        {% if page_obj.number == i %}
+                            <span class="this-page">{{ i }}</span>
+                        {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                            <a href="?page={{ i }}">{{ i }}</a>
+                        {% elif i == 1 or i == page_obj.paginator.num_pages %}
+                            <a href="?page={{ i }}">{{ i }}</a>
+                        {% elif i == page_obj.number|add:'-4' or i == page_obj.number|add:'4' %}
+                            <span class="ellipsis">...</span>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}" title="Next"><i class="fas fa-angle-right"></i></a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}" title="Last page"><i class="fas fa-angle-double-right"></i></a>
+                    {% else %}
+                        <span class="disabled"><i class="fas fa-angle-right"></i></span>
+                        <span class="disabled"><i class="fas fa-angle-double-right"></i></span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

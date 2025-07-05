@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug URLs</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
+        h1 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Registered URLs</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>URL Pattern</th>
+                <th>Name</th>
+                <th>Callback</th>
+                <th>App Name</th>
+                <th>Namespace</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for url in urls %}
+            <tr>
+                <td>{{ url.pattern }}</td>
+                <td>{{ url.name }}</td>
+                <td>{{ url.callback }}</td>
+                <td>{{ url.app_name|default:"-" }}</td>
+                <td>{{ url.namespace|default:"-" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <h2>Test Links</h2>
+    <ul>
+        <li><a href="{% url 'debug-urls' %}">Debug URLs</a> (this page)</li>
+        <li><a href="{% url 'test-admin' %}">Test Admin View</a></li>
+        <li><a href="/admin/submissions/">Admin Submissions</a> (direct link)</li>
+        <li><a href="/admin/">Django Admin</a></li>
+    </ul>
+</body>
+</html>

@@ -1,0 +1,334 @@
+import React, { useState, useRef, FC } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios, { AxiosError } from 'axios';
+import './UnreadEmailsDashboard.css';
+
+// SVG Icons
+const MailOpenIcon = () => (
+  <svg className="icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  </svg>
+);
+
+const UserIcon = () => (
+  <svg className="icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg className="icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+  </svg>
+);
+
+const UploadIcon = () => (
+  <svg className="icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+  </svg>
+);
+
+interface FormData {
+  name: string;
+  email: string;
+  password: string;
+  files: FileList | null;
+}
+
+interface ApiError {
+  message: string;
+  errors?: Record<string, string[]>;
+}
+
+const UnreadEmailsDashboard: FC = () => {
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    email: '',
+    password: '',
+    files: null,
+  });
+  
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const API_BASE_URL = 'http://localhost:8000/api';
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, files } = e.target;
+    
+    // Clear any previous errors for this field
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: files ? files : value,
+    }));
+  };
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        files: e.target.files,
+      }));
+    }
+  };
+  
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    }
+    
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters long';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setSubmitError(null);
+    
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('password', formData.password);
+      
+      // Append files if they exist
+      if (formData.files) {
+        for (let i = 0; i < formData.files.length; i++) {
+          formDataToSend.append('attachments', formData.files[i]);
+        }
+      }
+      
+      await axios.post(
+        `${API_BASE_URL}/unread-emails/submissions/`,
+        formDataToSend,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
+      // Show success message
+      setIsSubmitted(true);
+      
+      // Reset form after successful submission
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        files: null,
+      });
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        setIsSubmitted(false);
+      }, 5000);
+      
+    } catch (error) {
+      console.error('Submission error:', error);
+      
+      if (axios.isAxiosError(error) && error.response) {
+        const errorData = error.response.data as ApiError;
+        setSubmitError(errorData.message || 'An error occurred during submission.');
+        
+        // Handle validation errors
+        if (error.response.status === 400 && errorData.errors) {
+          const validationErrors: Record<string, string> = {};
+          Object.entries(errorData.errors).forEach(([field, messages]) => {
+            validationErrors[field] = Array.isArray(messages) ? messages.join(' ') : String(messages);
+          });
+          setErrors(validationErrors);
+        }
+      } else if (axios.isAxiosError(error) && error.request) {
+        // The request was made but no response was received
+        setSubmitError('No response from server. Please check your connection.');
+      } else {
+        // Something else happened
+        setSubmitError('An unexpected error occurred.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isSubmitted) {
+    return (
+      <div className="unread-emails-container">
+        <div className="thank-you-message">
+          <h2>Thank You!</h2>
+          <p>Your submission has been received successfully.</p>
+          <button 
+            onClick={() => navigate('/')} 
+            className="back-button"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="unread-emails-dashboard">
+      <div className="dashboard-container">
+        <h1 className="dashboard-title">
+          <MailOpenIcon />
+          Unread Emails Dashboard
+        </h1>
+        
+        <form onSubmit={handleSubmit} className="unread-emails-form">
+          {submitError && (
+            <div className="error-message">
+              {submitError}
+            </div>
+          )}
+          
+          <div className="form-group">
+            <label htmlFor="name" className="form-label">
+              <UserIcon />
+              Full Name
+            </label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              className={`form-input ${errors.name ? 'error' : ''}`}
+              placeholder="Enter your full name"
+              required
+            />
+            {errors.name && <span className="error-text">{errors.name}</span>}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">
+              <MailOpenIcon />
+              Email Address
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              className={`form-input ${errors.email ? 'error' : ''}`}
+              placeholder="Enter your email"
+              required
+            />
+            {errors.email && <span className="error-text">{errors.email}</span>}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="password" className="form-label">
+              <LockIcon />
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value={formData.password}
+              onChange={handleInputChange}
+              className={`form-input ${errors.password ? 'error' : ''}`}
+              placeholder="Enter a password (min 8 characters)"
+              required
+            />
+            {errors.password && <span className="error-text">{errors.password}</span>}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="file-upload" className="form-label file-upload-label">
+              <UploadIcon />
+              Upload Company Files
+              <span className="file-upload-hint">(PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, PNG, JPG, JPEG up to 10MB)</span>
+            </label>
+            <input
+              type="file"
+              id="file-upload"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="file-input"
+              multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg"
+            />
+            <div className="file-names">
+              {formData.files && 
+                Array.from(formData.files).map((file, index) => (
+                  <div key={index} className="file-name">
+                    {file.name} ({(file.size / 1024).toFixed(2)} KB)
+                  </div>
+                ))
+              }
+            </div>
+            {errors.attachments && (
+              <span className="error-text">{errors.attachments}</span>
+            )}
+          </div>
+          
+          <div className="form-actions">
+            <button 
+              type="submit" 
+              className={`submit-button ${isSubmitting ? 'submitting' : ''}`}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="spinner"></span>
+                  Submitting...
+                </>
+              ) : 'Submit'}
+            </button>
+            
+            <button 
+              type="button" 
+              className="cancel-button"
+              onClick={() => navigate('/')}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default UnreadEmailsDashboard;
