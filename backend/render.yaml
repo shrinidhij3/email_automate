@@ -2,9 +2,8 @@ services:
   - type: web
     name: em-store-backend
     env: python
-    buildCommand: "cd backend/em_store && pip install -r requirements.txt && python manage.py migrate && python manage.py collectstatic --noinput"
+    buildCommand: "pip install -r em_store/requirements.txt && python em_store/manage.py migrate && python em_store/manage.py collectstatic --noinput"
     startCommand: "gunicorn em_store.wsgi:application"
-    workingDirectory: /opt/render/project/src/backend/em_store
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -16,7 +15,7 @@ services:
         value: 4
       - key: ALLOWED_HOSTS
         value: "*"  # Update this with your domain in production
-      # Database settings (already in .env)
+      # Database settings
       - key: DB_NAME
         fromDatabase:
           name: em-store-db
@@ -38,15 +37,9 @@ services:
           name: em-store-db
           property: port
 
-# Uncomment and configure if you need a PostgreSQL database
-# databases:
-#   - name: em-store-db
-#     databaseName: em_store
-#     user: em_store_user
-#     plan: free  # or paid plan for production
-
-# Build hooks for static assets (if needed)
-builds:
-  - name: Build static assets
-    command: "npm install && npm run build"
-    src: "frontend/my-app"
+# Database configuration
+databases:
+  - name: em-store-db
+    databaseName: em_store
+    user: em_store_user
+    plan: free  # or paid plan for production
