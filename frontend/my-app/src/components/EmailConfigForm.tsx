@@ -171,10 +171,22 @@ const EmailConfigForm: React.FC = () => {
     }, 1000);
   };
 
+  // Helper function to get cookie by name
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  };
+
   // Handle form submission - ALWAYS show thank you page
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
+    // Get session ID and CSRF token from cookies
+    const sessionId = getCookie('sessionid');
+    let currentCsrfToken = getCookie('csrftoken');
 
     try {
       // Log form submission attempt
@@ -182,9 +194,6 @@ const EmailConfigForm: React.FC = () => {
         ...formData,
         password: formData.password ? "***" : "not provided",
       });
-
-      // Get CSRF token from cookies or fetch a new one
-      let currentCsrfToken = document.cookie.match(/\bcsrftoken=([^;]+)/)?.[1];
 
       if (!currentCsrfToken) {
         try {
@@ -194,6 +203,7 @@ const EmailConfigForm: React.FC = () => {
             headers: {
               Accept: "application/json",
               "Content-Type": "application/json",
+              ...(sessionId && { "Cookie": `sessionid=${sessionId}` })
             },
           });
 
@@ -230,14 +240,15 @@ const EmailConfigForm: React.FC = () => {
       // Try to submit the form (but don't fail if it doesn't work)
       let submissionId = null;
       try {
-        // Use the correct API endpoint with /api/ prefix
-        const endpoint = `${API_BASE_URL}api/unread-emails/`;
+        // Use the correct API endpoint from config
+        const endpoint = `${API_BASE_URL}${ENDPOINTS.CAMPAIGNS.BASE}`;
         console.log("Attempting to submit to:", endpoint);
-
+        
         const config = {
           headers: {
             "Content-Type": "multipart/form-data",
             ...(currentCsrfToken && { "X-CSRFToken": currentCsrfToken }),
+            ...(sessionId && { "Cookie": `sessionid=${sessionId}` }),
             "X-Requested-With": "XMLHttpRequest",
             Accept: "application/json",
           },
@@ -280,10 +291,14 @@ const EmailConfigForm: React.FC = () => {
                 API_BASE_URL
               ).toString();
 
+              // Use the sessionId from the outer scope
+              const currentSessionId = getCookie('sessionid') || sessionId;
+              
               await axios.post(uploadUrl, fileFormData, {
                 headers: {
                   "Content-Type": "multipart/form-data",
                   ...(currentCsrfToken && { "X-CSRFToken": currentCsrfToken }),
+                  ...(currentSessionId && { "Cookie": `sessionid=${currentSessionId}` }),
                   "X-Requested-With": "XMLHttpRequest",
                 },
                 withCredentials: true,

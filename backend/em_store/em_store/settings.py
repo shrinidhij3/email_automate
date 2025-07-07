@@ -137,23 +137,29 @@ CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'  # ✅ CORRECTED - This was the main issue!
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_PATH = '/'
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52
-CSRF_COOKIE_DOMAIN = '.onrender.com' if not DEBUG else None
+CSRF_COOKIE_DOMAIN = '.onrender.com'
 
 # Session configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
-SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'
-SESSION_COOKIE_DOMAIN = '.onrender.com' if not DEBUG else None
+SESSION_COOKIE_DOMAIN = '.onrender.com'
+
+# CORS configuration for cross-site cookies
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
 
 # REST Framework configuration
 REST_FRAMEWORK = {

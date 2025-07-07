@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import type { ChangeEvent, FormEvent, FC } from "react";
 import { useNavigate } from "react-router-dom";
 import "./EmailDashboard.css";
-import { AUTH_BASE_URL } from "../config/api";
+import { API_BASE_URL, ENDPOINTS } from "../config/api";
 
 interface FormData {
   name: string;
@@ -28,7 +28,7 @@ interface CsvEntry {
   day_nine?: string | null;
 }
 
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/email-entries/`;
+// API base URL is imported from config/api
 
 // Function to get CSRF token from cookies
 const getCsrfToken = (): string | null => {
@@ -43,7 +43,7 @@ const getCsrfToken = (): string | null => {
 const fetchCsrfToken = async (): Promise<string | null> => {
   try {
     // Use the correct authentication endpoint for CSRF token
-    const response = await fetch(`${AUTH_BASE_URL}csrf/`, {
+    const response = await fetch(`${API_BASE_URL}${ENDPOINTS.AUTH.CSRF}`, {
       method: "GET",
       credentials: "include",
     });
@@ -205,7 +205,7 @@ const EmailDashboard: FC = () => {
       console.log("Sending request to:", API_BASE_URL);
       console.log("Request data:", data);
 
-      const response = await makeRequest(API_BASE_URL, {
+      const response = await makeRequest(`${API_BASE_URL}${ENDPOINTS.EMAIL_ENTRIES}`, {
         method: "POST",
         body: JSON.stringify(data),
         headers: {
@@ -349,7 +349,7 @@ const EmailDashboard: FC = () => {
 
         console.log("Sending bulk request with entries:", entries);
 
-        const response = await makeRequest(API_BASE_URL, {
+        const response = await makeRequest(`${API_BASE_URL}${ENDPOINTS.EMAIL_ENTRIES}bulk/`, {
           method: "POST",
           body: JSON.stringify(entries),
           headers: {

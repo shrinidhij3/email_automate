@@ -1,12 +1,68 @@
 import { useState, useEffect } from "react";
 import "./EmailMain.css";
-import api from "../api/api";
+import axios from "axios";
+import type { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import { API_BASE_URL } from "../config/api";
 
+// Create axios instance with base URL
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "X-Requested-With": "XMLHttpRequest"
+  }
+});
+
+// Request interceptor to add CSRF token
+api.interceptors.request.use(
+  async (config: InternalAxiosRequestConfig) => {
+    // Skip adding CSRF token for GET requests and CSRF endpoint
+    if (config.method?.toLowerCase() === 'get' || config.url?.includes('/csrf-token/')) {
+      return config;
+    }
+
+    // Get CSRF token from cookies
+    const csrfToken = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('csrftoken='))
+      ?.split('=')[1];
+
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    } else {
+      // If no token in cookies, try to fetch one
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/csrf-token/`, {
+          withCredentials: true,
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (response.data?.csrfToken) {
+          document.cookie = `csrftoken=${response.data.csrfToken}; path=/`;
+          config.headers['X-CSRFToken'] = response.data.csrfToken;
+        }
+      } catch (error) {
+        console.error('Failed to fetch CSRF token:', error);
+      }
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Response interceptor for handling errors
 api.interceptors.response.use(
-  (response) => response,
-  async (error: any) => {
+  (response: AxiosResponse) => response,
+  async (error: AxiosError) => {
     console.error('API Error:', {
       message: error.message,
       status: error.response?.status,
@@ -235,16 +291,6 @@ function EmailMainForm() {
     
     setIsSubmitting(true);
     setErrorMessage('');
-    
-    // First, ensure we have a CSRF token
-    try {
-      await api.get('/api/auth/csrf/');
-    } catch (error) {
-      console.error('Failed to get CSRF token:', error);
-      setErrorMessage('Failed to initialize form. Please refresh the page.');
-      setIsSubmitting(false);
-      return;
-    }
     
     try {
       // Create the main campaign data (without files)
