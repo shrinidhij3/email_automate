@@ -274,10 +274,9 @@ const EmailConfigForm: React.FC = () => {
               // Use 'file' as the field name to match backend expectations
               fileFormData.append("file", file);
 
+              // Use the correct campaign upload endpoint
               const uploadUrl = new URL(
-                ENDPOINTS.UNREAD_EMAILS.UPLOAD_ATTACHMENT(
-                  submissionId.toString()
-                ),
+                ENDPOINTS.CAMPAIGNS.UPLOAD_ATTACHMENTS(submissionId.toString()),
                 API_BASE_URL
               ).toString();
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ChangeEvent, FormEvent, FC } from "react";
+import { useNavigate } from "react-router-dom";
 import "./EmailDashboard.css";
 import { AUTH_BASE_URL } from "../config/api";
 
@@ -69,6 +70,7 @@ const EmailDashboard: FC = () => {
   const [isSubmittingSingle, setIsSubmittingSingle] = useState(false);
   const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
   const [message, setMessage] = useState<Message>({ text: "", type: "" });
+  const navigate = useNavigate();
 
   // Fetch CSRF token on component mount
   useEffect(() => {
@@ -223,6 +225,10 @@ const EmailDashboard: FC = () => {
       } else if (response.ok) {
         showMessage("Email submitted successfully!", "success");
         setFormData({ name: "", email: "", client_email: "" });
+        // Redirect to dashboard after a short delay to show success message
+        setTimeout(() => {
+          navigate('/email-dashboard');
+        }, 1000);
       } else {
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         if (responseData) {
