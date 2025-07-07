@@ -141,7 +141,7 @@ CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_PATH = '/'
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52
-CSRF_COOKIE_DOMAIN = '.onrender.com'
+CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
 
 # Session configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
@@ -153,7 +153,7 @@ SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'
-SESSION_COOKIE_DOMAIN = '.onrender.com'
+SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
 
 # CORS configuration for cross-site cookies
 CORS_ALLOW_CREDENTIALS = True

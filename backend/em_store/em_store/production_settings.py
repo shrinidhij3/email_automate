@@ -45,6 +45,15 @@ CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-frontend.onrender.com'
 ]
 
+# Cross-site cookie and CORS settings for frontend-backend auth
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
+CORS_ALLOW_CREDENTIALS = True
+
 # Static files with WhiteNoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
