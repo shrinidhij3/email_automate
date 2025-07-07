@@ -1,55 +1,63 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 
+/**
+ * Fetches a new CSRF token from the server
+ * @returns Promise that resolves to the CSRF token string
+ * @throws Error if the token cannot be retrieved
+ */
 export async function fetchCSRFToken(): Promise<string> {
   try {
-    console.log('Fetching CSRF token from:', `${API_BASE_URL}/api/csrf-token/`);
+    console.log('[CSRF] Fetching CSRF token from:', `${API_BASE_URL}/api/csrf-token/`);
     
     const response = await axios.get(`${API_BASE_URL}/api/csrf-token/`, {
-      withCredentials: true,  // Important for sending/receiving cookies cross-domain
+      withCredentials: true,  // Required for cross-domain cookies
       headers: {
         'Accept': 'application/json',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
+        'Expires': '0',
         'X-Requested-With': 'XMLHttpRequest'
-      }
+      },
+      timeout: 10000  // 10 second timeout
     });
     
-    if (!response.data?.csrfToken) {
-      throw new Error('No CSRF token received from server');
+    if (!response?.data?.csrfToken) {
+      console.error('[CSRF] Invalid response format:', response);
+      throw new Error('Invalid response from server');
     }
     
-    console.log('CSRF token received, checking cookies...');
-    
-    // In cross-domain, we don't need to manually set the cookie
-    // The server will set it with the correct domain and flags
-    
-    // Just verify we can read the cookie
-    const csrfCookie = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('csrftoken='))
-      ?.split('=')[1];
-      
-    if (!csrfCookie) {
-      console.warn('CSRF cookie not found in document.cookies after fetch');
-    } else {
-      console.log('CSRF cookie is available in document.cookies');
-    }
-    
+    console.log('[CSRF] Token received successfully');
     return response.data.csrfToken;
   } catch (error: unknown) {
+    let errorMessage = 'Failed to get security token';
+    
     if (axios.isAxiosError(error)) {
-      console.error('Error fetching CSRF token:', {
+      const status = error.response?.status;
+      const responseData = error.response?.data;
+      
+      console.error('[CSRF] Error details:', {
+        status,
         message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        headers: error.response?.headers
+        response: responseData,
+        url: error.config?.url,
+        method: error.config?.method,
       });
+      
+      if (status === 403) {
+        errorMessage = 'Session expired. Please refresh the page and try again.';
+      } else if (status === 404) {
+        errorMessage = 'Authentication service unavailable. Please try again later.';
+      } else if (status && status >= 500) {
+        errorMessage = 'Server error. Please try again in a few moments.';
+      }
     } else if (error instanceof Error) {
-      console.error('Error fetching CSRF token:', error.message);
+      console.error('[CSRF] Unexpected error:', error);
+      errorMessage = error.message || errorMessage;
     } else {
-      console.error('Unknown error fetching CSRF token:', error);
+      console.error('[CSRF] Unknown error:', error);
     }
-    throw new Error('Failed to get security token. Please refresh the page and try again.');
+    
+    throw new Error(errorMessage);
   }
 }

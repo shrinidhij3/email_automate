@@ -190,6 +190,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+     'cache-control',  # Add this line
+    'pragma',         # Add this line
 ]
 
 # Expose cookies and other headers to the frontend
@@ -198,6 +200,7 @@ CORS_EXPOSE_HEADERS = [
     'X-CSRFToken',
     'Content-Length',
     'X-Requested-With',
+    'Set-Cookie',    # Add this line
 ]
 
 # Important security settings for cross-domain cookies

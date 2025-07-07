@@ -23,69 +23,65 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-@api_view(['GET'])
+@api_view(['GET', 'OPTIONS'])
 @permission_classes([AllowAny])
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "OPTIONS"])
 @ensure_csrf_cookie
 def get_csrf_token(request):
     """
-    View to get CSRF token with proper CORS headers and cookie settings.
-    This endpoint is exempt from CSRF protection to allow initial token retrieval.
+    View to get CSRF token with proper CORS headers.
+    This endpoint is used by the frontend to get a CSRF token for API requests.
     """
     try:
-        # Get the CSRF token
-        token = get_token(request)
-        
-        # Get the origin from the request headers
+        # For OPTIONS requests, just return the CORS headers
+        if request.method == 'OPTIONS':
+            response = JsonResponse({}, status=200)
+        else:
+            # Get or create CSRF token
+            token = get_token(request)
+            response = JsonResponse({
+                'status': 'success',
+                'message': 'CSRF token retrieved successfully',
+                'csrfToken': token
+            })
+
+        # Get the origin from the request
         origin = request.META.get('HTTP_ORIGIN', '')
         
-        # Create response with token
-        response = JsonResponse({
-            'status': 'success',
-            'message': 'CSRF token retrieved successfully',
-            'csrfToken': token
-        })
+        # Get allowed origins from settings
+        allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
         
         # Set CORS headers
-        response['Access-Control-Allow-Origin'] = origin or '*'
-        response['Access-Control-Allow-Credentials'] = 'true'
-        response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'X-Requested-With, Content-Type, Accept, X-CSRFToken'
-        
-        # Determine if the request is secure
-        is_secure = request.is_secure()
-        
-        # Set the CSRF token in a cookie with proper domain and security settings
-        response.set_cookie(
-            key='csrftoken',
-            value=token,
-            max_age=60 * 60 * 24 * 7,  # 1 week
-            domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') else None,
-            path='/',
-            secure=is_secure,
-            httponly=False,  # Must be False to be accessible via JavaScript
-            samesite='None' if is_secure else 'Lax'
-        )
-        
-        # Set CORS headers
-        origin = request.headers.get('Origin', '')
-        allowed_origins = settings.CORS_ALLOWED_ORIGINS if hasattr(settings, 'CORS_ALLOWED_ORIGINS') else []
-        
         if origin in allowed_origins or settings.DEBUG:
             response['Access-Control-Allow-Origin'] = origin
             response['Access-Control-Allow-Credentials'] = 'true'
         
         # Add CSRF token to headers
-        response['X-CSRFToken'] = token
+        if request.method != 'OPTIONS':
+            response['X-CSRFToken'] = token
         
-        # Additional CORS headers
-        response['Access-Control-Allow-Headers'] = 'X-Requested-With, Content-Type, Accept, X-CSRFToken, Authorization'
+        # Add CORS headers
+        response['Access-Control-Allow-Headers'] = 'X-Requested-With, Content-Type, Accept, X-CSRFToken, Authorization, Cache-Control, Pragma'
         response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response['Access-Control-Max-Age'] = '3600'  # 1 hour
+        response['Access-Control-Max-Age'] = '86400'  # 24 hours
+        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
         
         # Add Vary header to prevent caching of CORS responses
-        response['Vary'] = 'Origin'
+        response['Vary'] = 'Origin, Cookie'
         
+        # Set cookie with secure flags
+        is_secure = request.is_secure()
+        if request.method != 'OPTIONS':
+            response.set_cookie(
+                key='csrftoken',
+                value=token,
+                max_age=60 * 60 * 24 * 7,  # 1 week
+                domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and not settings.DEBUG else None,
+                path='/',
+                secure=is_secure,
+                httponly=False,  # Must be False to be accessible via JavaScript
+                samesite='None' if is_secure else 'Lax'
+            )      
         logger.debug(f'CSRF token generated and set for origin: {origin}')
         return response
         
