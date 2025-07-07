@@ -3,8 +3,9 @@ import "./EmailMain.css";
 import axios from "axios";
 import type { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { API_BASE_URL } from "../config/api";
+import { fetchCSRFToken } from "../utils/csrf";
 
-// Create axios instance with base URL
+// Create axios instance with base URL and CSRF configuration
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -12,52 +13,48 @@ const api = axios.create({
     "Content-Type": "application/json",
     "Accept": "application/json",
     "X-Requested-With": "XMLHttpRequest"
-  }
+  },
+  xsrfCookieName: 'csrftoken',
+  xsrfHeaderName: 'X-CSRFToken'
 });
 
-// Request interceptor to add CSRF token
+// Request interceptor for logging
 api.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
-    // Skip adding CSRF token for GET requests and CSRF endpoint
-    if (config.method?.toLowerCase() === 'get' || config.url?.includes('/csrf-token/')) {
-      return config;
+  (config: InternalAxiosRequestConfig) => {
+    // Skip logging for GET requests or CSRF endpoint
+    if (config.method?.toLowerCase() !== 'get' && !config.url?.includes('csrf-token')) {
+      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
+        data: config.data,
+        headers: config.headers
+      });
     }
-
-    // Get CSRF token from cookies
-    const csrfToken = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('csrftoken='))
-      ?.split('=')[1];
-
-    if (csrfToken) {
-      config.headers['X-CSRFToken'] = csrfToken;
-    } else {
-      // If no token in cookies, try to fetch one
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/csrf-token/`, {
-          withCredentials: true,
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        
-        if (response.data?.csrfToken) {
-          document.cookie = `csrftoken=${response.data.csrfToken}; path=/`;
-          config.headers['X-CSRFToken'] = response.data.csrfToken;
-        }
-      } catch (error) {
-        console.error('Failed to fetch CSRF token:', error);
-      }
-    }
-    
     return config;
   },
   (error) => {
+    console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
+
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 403) {
+      console.error('403 Forbidden - Possible CSRF token mismatch');
+      // Optionally try to refresh the CSRF token and retry
+      try {
+        await fetchCSRFToken();
+        return api(error.config);
+      } catch (refreshError) {
+        console.error('Failed to refresh CSRF token:', refreshError);
+        window.location.href = '/login';  // Redirect to login on failure
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 // Response interceptor for handling errors
 api.interceptors.response.use(

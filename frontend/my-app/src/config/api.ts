@@ -1,7 +1,9 @@
-// API Configuration - Ensure base URL doesn't end with /api/
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://email-automate-ob1a.onrender.com';
+// API Configuration for local development with production backend
+const PRODUCTION_BACKEND = 'https://email-automate-ob1a.onrender.com';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || PRODUCTION_BACKEND;
+
 // Remove trailing slashes and ensure we don't have duplicate /api/
-export const API_BASE_URL = BASE_URL.replace(/\/+$/, '');
+export const API_BASE_URL = BASE_URL.replace(/(\/)+$/, '');
 
 // For backward compatibility
 export const AUTH_BASE_URL = `${API_BASE_URL}/api/auth/`;

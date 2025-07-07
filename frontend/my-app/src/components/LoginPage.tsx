@@ -22,18 +22,28 @@ const LoginPage: React.FC = () => {
   const from = location.state?.from?.pathname || defaultRedirect;
 
   useEffect(() => {
+    let isMounted = true;
+    
     const checkAuthStatus = async () => {
       try {
         const isAuth = await checkAuth();
-        if (isAuth) {
+        if (isMounted && isAuth) {
           navigate(from, { replace: true });
         }
-      } catch {
-        // Silent fail
+      } catch (error) {
+        console.error('Auth check failed:', error);
       }
     };
-    checkAuthStatus();
-  }, [checkAuth, from, navigate]);
+    
+    // Only run the check if we're not already in the middle of a login attempt
+    if (!isLoading) {
+      checkAuthStatus();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [checkAuth, from, navigate, isLoading]);
 
   const validateEmail = (email: string): boolean => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

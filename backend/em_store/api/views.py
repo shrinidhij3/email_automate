@@ -36,6 +36,9 @@ def get_csrf_token(request):
         # Get the CSRF token
         token = get_token(request)
         
+        # Get the origin from the request headers
+        origin = request.META.get('HTTP_ORIGIN', '')
+        
         # Create response with token
         response = JsonResponse({
             'status': 'success',
@@ -43,16 +46,25 @@ def get_csrf_token(request):
             'csrfToken': token
         })
         
-        # Set the CSRF token in a cookie
+        # Set CORS headers
+        response['Access-Control-Allow-Origin'] = origin or '*'
+        response['Access-Control-Allow-Credentials'] = 'true'
+        response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'X-Requested-With, Content-Type, Accept, X-CSRFToken'
+        
+        # Determine if the request is secure
+        is_secure = request.is_secure()
+        
+        # Set the CSRF token in a cookie with proper domain and security settings
         response.set_cookie(
             key='csrftoken',
             value=token,
             max_age=60 * 60 * 24 * 7,  # 1 week
-            httponly=False,  # Allow JavaScript to access the cookie
-            samesite='Lax',  # Lax for better security
-            secure=not settings.DEBUG,  # Secure in production
-            path='/',  # Available on all paths
-            domain=settings.SESSION_COOKIE_DOMAIN if not settings.DEBUG else None,
+            domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') else None,
+            path='/',
+            secure=is_secure,
+            httponly=False,  # Must be False to be accessible via JavaScript
+            samesite='None' if is_secure else 'Lax'
         )
         
         # Set CORS headers

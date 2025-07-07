@@ -33,6 +33,10 @@ DATABASES = {
     }
 }
 
+COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None)  # Will be None in development
+CSRF_COOKIE_DOMAIN = COOKIE_DOMAIN
+SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN
+
 # Production CORS settings
 CORS_ALLOWED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
@@ -42,7 +46,9 @@ CORS_ALLOWED_ORIGINS = [
 # Production CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
-    'https://email-automate-frontend.onrender.com'
+    'https://email-automate-frontend.onrender.com',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
 ]
 
 # Cross-site cookie and CORS settings for frontend-backend auth

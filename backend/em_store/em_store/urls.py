@@ -68,7 +68,7 @@ urlpatterns = [
     path('api/auth/', include('auth_app.urls')),  # Authentication endpoints
     
     # API endpoints
-    path('api/accounts/', include('accounts.urls')),  # Add accounts URLs
+    path('api/accounts/', include('accounts.urls')),  # User accounts API
     path('api/email-entries/', include('email_entry.urls')),  # Email entries API
     path('api/unread-emails/', include('unread_emails.urls')),  # Unread emails API
     path('api/campaigns/', include('campaigns.urls')),  # Email campaigns API
@@ -77,13 +77,6 @@ urlpatterns = [
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-    
-    # API endpoints
-    path('api/auth/', include('auth_app.urls')),  # Authentication endpoints
-    path('api/accounts/', include('accounts.urls')),  # Add accounts URLs
-    path('api/email-entries/', include('email_entry.urls')),  # Email entries API
-    path('api/unread-emails/', include('unread_emails.urls')),  # Unread emails API
-    path('api/campaigns/', include('campaigns.urls')),  # Email campaigns API
     
     # CSRF token endpoint - must be after other API routes
     path('api/csrf-token/', get_csrf_token, name='get_csrf_token'),

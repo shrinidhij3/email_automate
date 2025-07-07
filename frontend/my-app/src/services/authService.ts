@@ -17,16 +17,97 @@ export interface ErrorResponse {
   [key: string]: any;
 }
 
-// Create axios instance
+// Create axios instance with default config
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true,
+  withCredentials: true,  // Required for cookies to be sent cross-domain
   headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    "X-Requested-With": "XMLHttpRequest",
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
   },
+  xsrfCookieName: 'csrftoken',
+  xsrfHeaderName: 'X-CSRFToken',
+  // Important for cross-domain requests
+  withXSRFToken: true,
+  timeout: 10000,  // 10 second timeout
 });
+
+// Add request interceptor for logging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
+      data: config.data,
+      headers: config.headers,
+      withCredentials: config.withCredentials,
+    });
+    return config;
+  },
+  (error) => {
+    console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for handling errors
+api.interceptors.response.use(
+  (response) => {
+    console.log(`[API] Response ${response.status} ${response.config.url}`, {
+      data: response.data,
+      headers: response.headers,
+    });
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If 403 and not a retry, try to refresh CSRF token
+    if (error.response?.status === 403 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      console.log('CSRF token may be invalid, attempting to refresh...');
+      
+      try {
+        await fetchCSRFToken();
+        // Retry the original request with new CSRF token
+        return api(originalRequest);
+      } catch (refreshError) {
+        console.error('Failed to refresh CSRF token:', refreshError);
+        // Redirect to login on refresh failure
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle CSRF token refresh
+api.interceptors.response.use(
+  response => response,
+  async error => {
+    const originalRequest = error.config;
+    
+    // If error is 403 and we haven't tried to refresh the token yet
+    if (error.response?.status === 403 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to get a new CSRF token
+        await fetchCSRFToken();
+        // Retry the original request with the new token
+        return api(originalRequest);
+      } catch (refreshError) {
+        console.error('Failed to refresh CSRF token:', refreshError);
+        // If refresh fails, redirect to login
+        window.location.href = '/login';
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Function to get CSRF token from cookies (keep as fallback)
 export function getCSRFToken(): string | null {
@@ -53,8 +134,9 @@ const authService = {
     }
 
     try {
-      // Use the dedicated CSRF token function
+      // Get a fresh CSRF token before registration
       const csrfToken = await fetchCSRFToken();
+      console.log('CSRF token for registration:', csrfToken);
 
       const registrationData = {
         username: username.trim(),
@@ -64,6 +146,8 @@ const authService = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
       };
+
+      console.log('Registration data:', { ...registrationData, password: '***' });
 
       const response = await api.post<AuthResponse>(
         ENDPOINTS.AUTH.REGISTER,
@@ -77,19 +161,32 @@ const authService = {
         }
       );
 
+      console.log('Registration response:', {
+        status: response.status,
+        headers: response.headers,
+        data: response.data
+      });
+
       if (response.status === 201 || response.status === 200) {
-        console.log("Registration successful:", response.data);
+        console.log("Registration successful, attempting auto-login...");
 
         // After successful registration, try to log the user in
         try {
+          console.log('Initiating auto-login after registration');
           const loginResponse = await this.login(username, password);
+          console.log('Auto-login successful:', loginResponse);
           return loginResponse;
         } catch (loginError) {
           console.warn("Auto-login after registration failed:", loginError);
+          // Even if auto-login fails, return the registration response
           return response.data;
         }
       } else {
-        throw new Error(`Registration failed with status: ${response.status}`);
+        console.error('Registration failed with status:', response.status, response.data);
+        const errorMessage = (response.data as any)?.detail || 
+                          (response.data as any)?.error || 
+                          `Registration failed with status: ${response.status}`;
+        throw new Error(errorMessage);
       }
     } catch (error: unknown) {
       console.error("Registration error:", error);
@@ -136,9 +233,10 @@ const authService = {
 
   async login(username: string, password: string): Promise<AuthResponse> {
     try {
-      // Use the dedicated CSRF token function
+      // First get a fresh CSRF token
       const csrfToken = await fetchCSRFToken();
-
+      
+      // Then make the login request with the token
       const response = await api.post<AuthResponse>(
         ENDPOINTS.AUTH.LOGIN,
         { username, password },
@@ -150,6 +248,11 @@ const authService = {
         }
       );
 
+      // Verify we have a session cookie
+      const hasSession = document.cookie.includes('sessionid');
+      console.log('Login successful. Session cookie present:', hasSession);
+      console.log('CSRF Token after login:', csrfToken);
+      
       return response.data;
     } catch (error: any) {
       console.error("Login error:", {
