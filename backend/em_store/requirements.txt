@@ -31,6 +31,7 @@ sendgrid==6.12.4
 
 # Development tools
 django-extensions==3.2.3
+django-import-export==3.3.6
 
 # File type detection
 python-magic-bin==0.4.14; sys_platform == 'win32'
