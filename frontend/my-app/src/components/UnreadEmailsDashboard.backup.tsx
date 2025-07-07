@@ -99,8 +99,8 @@ const UnreadEmailsDashboard = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Refs and constants
-  const API_BASE_URL = "http://localhost:8000/api/";
-  const AUTH_BASE_URL = "http://localhost:8000/api/auth/";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/";
+  const AUTH_BASE_URL = `${API_BASE_URL}auth/`;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMounted = useRef(true);
   // Removed unused navigate hook since it's not currently used

@@ -1,26 +1,29 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import {
-  FiInfo,
-  FiUpload,
-  FiCheckCircle,
-  FiAlertCircle,
-  FiChevronDown,
-  FiChevronUp,
-  FiChevronRight,
-  FiChevronLeft,
-} from "react-icons/fi";
 import "./EmailMain.css";
+import api from "../api/api";
 
-const API_BASE_URL = "http://localhost:8000/";
 
-function getCookie(name: string): string | null {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
-  return null;
-}
+// Response interceptor for handling errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error: any) => {
+    console.error('API Error:', {
+      message: error.message,
+      status: error.response?.status,
+      url: error.config?.url,
+      method: error.config?.method,
+    });
+
+    // Handle 403 Forbidden (CSRF token might be invalid)
+    if (error.response?.status === 403) {
+      console.error('[AUTH] Authentication failed. Please log in again.');
+      // Uncomment to enable auto-redirect to login
+      // window.location.href = '/login';
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 interface ProviderConfig {
   imapHost: string;
@@ -88,17 +91,15 @@ function EmailMainForm() {
     files: [],
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showHelp, setShowHelp] = useState<boolean>(false);
   const [fileNames, setFileNames] = useState<string[]>([]);
-
-  const navigate = useNavigate();
-  const isCustomProvider = formData.provider === "other";
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const totalSteps = 3;
+  
+  const isCustomProvider = formData.provider === "other";
 
   useEffect(() => {
     if (!isCustomProvider) {
@@ -171,41 +172,87 @@ function EmailMainForm() {
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Please enter a valid email address";
-    if (!formData.password) newErrors.password = "Password is required";
-    if (!formData.imapHost.trim()) newErrors.imapHost = "IMAP host is required";
-    if (!formData.imapPort.trim()) newErrors.imapPort = "IMAP port is required";
-    if (!formData.smtpHost.trim()) newErrors.smtpHost = "SMTP host is required";
-    if (!formData.smtpPort.trim()) newErrors.smtpPort = "SMTP port is required";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Reset error message
+    setErrorMessage('');
+
+    // Check required fields
+    if (!formData.name.trim()) {
+      setErrorMessage('Name is required');
+      return false;
+    }
+    
+    if (!formData.email.trim()) {
+      setErrorMessage('Email is required');
+      return false;
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      setErrorMessage('Please enter a valid email address');
+      return false;
+    }
+    
+    if (!formData.password) {
+      setErrorMessage('Password is required');
+      return false;
+    }
+    
+    // Server settings validation (only for custom providers)
+    if (isCustomProvider) {
+      if (!formData.customProvider) {
+        setErrorMessage('Custom provider name is required');
+        return false;
+      }
+      
+      if (!formData.imapHost?.trim()) {
+        setErrorMessage('IMAP Host is required');
+        return false;
+      }
+      
+      if (!formData.imapPort?.trim()) {
+        setErrorMessage('IMAP Port is required');
+        return false;
+      }
+      
+      if (!formData.smtpHost?.trim()) {
+        setErrorMessage('SMTP Host is required');
+        return false;
+      }
+      
+      if (!formData.smtpPort?.trim()) {
+        setErrorMessage('SMTP Port is required');
+        return false;
+      }
+    }
+    
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent automatic form submission
-    if (!validateForm()) return;
-    if (isSubmitting) return;
-
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    
     setIsSubmitting(true);
-    setSubmitError(null);
-
-    // Navigate to thank you page immediately
-    navigate("/email-dashboard");
-
-    // Continue with form submission in the background
+    setErrorMessage('');
+    
+    // First, ensure we have a CSRF token
+    try {
+      await api.get('/api/auth/csrf/');
+    } catch (error) {
+      console.error('Failed to get CSRF token:', error);
+      setErrorMessage('Failed to initialize form. Please refresh the page.');
+      setIsSubmitting(false);
+      return;
+    }
+    
     try {
       // Create the main campaign data (without files)
       const campaignData = {
         name: formData.name.trim(),
         email: formData.email.trim(),
         password: formData.password,
-        provider: isCustomProvider
-          ? formData.customProvider
-          : formData.provider,
+        provider: isCustomProvider ? formData.customProvider : formData.provider,
         imap_host: formData.imapHost,
         imap_port: formData.imapPort ? parseInt(formData.imapPort, 10) : null,
         smtp_host: formData.smtpHost,
@@ -214,47 +261,79 @@ function EmailMainForm() {
         notes: formData.notes || "",
       };
 
-      // Submit campaign data as JSON first
-      const response = await axios.post(
-        `${API_BASE_URL}api/campaigns/`,
-        campaignData,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken"),
-          },
-          withCredentials: true,
-        }
-      );
+      console.log("Submitting campaign data:", {
+        ...campaignData,
+        password: '***', // Don't log the actual password
+      });
+      
+      // Make the request using our configured api instance
+      const apiResponse = await api.post('/api/campaigns/', campaignData, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
 
-      // If files exist and campaign was created successfully, upload them in the background
-      if (formData.files.length > 0 && response.data?.id) {
-        const attachmentsFormData = new FormData();
-        formData.files.forEach((file) =>
-          attachmentsFormData.append("files", file)
-        );
-
-        // Don't await this - let it happen in the background
-        axios
-          .post(
-            `${API_BASE_URL}api/campaigns/${response.data.id}/upload_attachments/`,
-            attachmentsFormData,
-            {
-              headers: {
-                "Content-Type": "multipart/form-data",
-                "X-CSRFToken": getCookie("csrftoken"),
-              },
-              withCredentials: true,
-            }
-          )
-          .catch((error) => {
-            console.error("Background file upload error:", error);
-            // Log to error tracking service if available
-          });
+      console.log('Response status:', apiResponse.status);
+      console.log('Response headers:', apiResponse.headers);
+      console.log('Response data:', apiResponse.data);
+      
+      if (apiResponse.status >= 400) {
+        const errorDetail = apiResponse.data?.detail || 
+                          apiResponse.data?.message || 
+                          'No error details provided';
+        console.error('Campaign creation failed:', {
+          status: apiResponse.status,
+          statusText: apiResponse.statusText,
+          data: apiResponse.data,
+          headers: apiResponse.headers
+        });
+        throw new Error(`Failed to create campaign: ${errorDetail}`);
       }
-    } catch (error: unknown) {
-      console.error("Background submission error:", error);
-      // Log to error tracking service if available
+      
+      console.log("Campaign created successfully:", apiResponse.data);
+      
+      // Reset form and show success message
+      setFormData({
+        name: "",
+        email: "",
+        password: "",
+        provider: "gmail",
+        customProvider: "",
+        imapHost: PROVIDER_CONFIGS.gmail.imapHost,
+        imapPort: PROVIDER_CONFIGS.gmail.imapPort,
+        smtpHost: PROVIDER_CONFIGS.gmail.smtpHost,
+        smtpPort: PROVIDER_CONFIGS.gmail.smtpPort,
+        useSecure: PROVIDER_CONFIGS.gmail.useSecure,
+        useSsl: PROVIDER_CONFIGS.gmail.useSsl,
+        notes: "",
+        files: [],
+      });
+      setFileNames([]);
+      setCurrentStep(1);
+      
+      // Show success message
+      setErrorMessage("Campaign created successfully!");
+      
+    } catch (error: any) {
+      console.error("Campaign submission error:", error);
+      
+      // Handle API errors
+      if (error?.response) {
+        // Handle HTTP errors with response
+        const errorMessage = error.response.data?.detail || 
+                           error.response.data?.message || 
+                           error.message || 
+                           "Failed to create campaign";
+        setErrorMessage(`Error: ${errorMessage}`);
+      } else if (error?.request) {
+        // The request was made but no response was received
+        setErrorMessage("No response from server. Please check your connection.");
+      } else if (error instanceof Error) {
+        // Something happened in setting up the request
+        setErrorMessage(`Error: ${error.message}`);
+      } else {
+        setErrorMessage("An unknown error occurred. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -267,7 +346,6 @@ function EmailMainForm() {
           <div className="form-step">
             <h3>Account Information</h3>
             <p className="form-instruction">
-              <FiInfo className="info-icon" />
               Enter your basic account details. All fields are required.
             </p>
             <div className="form-group">
@@ -279,10 +357,10 @@ function EmailMainForm() {
                 value={formData.name}
                 onChange={handleInputChange}
                 placeholder="John Doe"
-                className={errors.name ? "error" : ""}
+                className={errorMessage && !formData.name.trim() ? "error" : ""}
               />
-              {errors.name && (
-                <span className="error-message">{errors.name}</span>
+              {errorMessage && !formData.name.trim() && (
+                <span className="error-message">Name is required</span>
               )}
             </div>
             <div className="form-group">
@@ -294,10 +372,10 @@ function EmailMainForm() {
                 value={formData.email}
                 onChange={handleInputChange}
                 placeholder="your.email@example.com"
-                className={errors.email ? "error" : ""}
+                className={errorMessage && !formData.email.trim() ? "error" : ""}
               />
-              {errors.email && (
-                <span className="error-message">{errors.email}</span>
+              {errorMessage && !formData.email.trim() && (
+                <span className="error-message">Email is required</span>
               )}
             </div>
             <div className="form-group">
@@ -309,10 +387,10 @@ function EmailMainForm() {
                 value={formData.password}
                 onChange={handleInputChange}
                 placeholder="••••••••"
-                className={errors.password ? "error" : ""}
+                className={errorMessage && !formData.password ? "error" : ""}
               />
-              {errors.password && (
-                <span className="error-message">{errors.password}</span>
+              {errorMessage && !formData.password && (
+                <span className="error-message">Password is required</span>
               )}
               <p className="help-text">
                 Use an app password if 2FA is enabled on your email account
@@ -325,7 +403,6 @@ function EmailMainForm() {
           <div className="form-step">
             <h3>Server Settings</h3>
             <p className="form-instruction">
-              <FiInfo className="info-icon" />
               Configure your email server settings. We've pre-filled common
               values for popular providers.
             </p>
@@ -365,11 +442,11 @@ function EmailMainForm() {
                   name="imapHost"
                   value={formData.imapHost}
                   onChange={handleInputChange}
-                  className={errors.imapHost ? "error" : ""}
+                  className={errorMessage && !formData.imapHost.trim() ? "error" : ""}
                   disabled={!isCustomProvider}
                 />
-                {errors.imapHost && (
-                  <span className="error-message">{errors.imapHost}</span>
+                {errorMessage && !formData.imapHost.trim() && (
+                  <span className="error-message">IMAP Host is required</span>
                 )}
               </div>
               <div className="form-group">
@@ -381,7 +458,7 @@ function EmailMainForm() {
                     name="imapPort"
                     value={formData.imapPort}
                     onChange={handleInputChange}
-                    className={errors.imapPort ? "error" : ""}
+                    className={errorMessage && !formData.imapPort.trim() ? "error" : ""}
                     disabled={!isCustomProvider}
                   />
                   {isCustomProvider && (
@@ -401,8 +478,8 @@ function EmailMainForm() {
                     </div>
                   )}
                 </div>
-                {errors.imapPort && (
-                  <span className="error-message">{errors.imapPort}</span>
+                {errorMessage && !formData.imapPort.trim() && (
+                  <span className="error-message">IMAP Port is required</span>
                 )}
               </div>
               <div className="form-group">
@@ -413,11 +490,11 @@ function EmailMainForm() {
                   name="smtpHost"
                   value={formData.smtpHost}
                   onChange={handleInputChange}
-                  className={errors.smtpHost ? "error" : ""}
+                  className={errorMessage && !formData.smtpHost.trim() ? "error" : ""}
                   disabled={!isCustomProvider}
                 />
-                {errors.smtpHost && (
-                  <span className="error-message">{errors.smtpHost}</span>
+                {errorMessage && !formData.smtpHost.trim() && (
+                  <span className="error-message">SMTP Host is required</span>
                 )}
               </div>
               <div className="form-group">
@@ -429,7 +506,7 @@ function EmailMainForm() {
                     name="smtpPort"
                     value={formData.smtpPort}
                     onChange={handleInputChange}
-                    className={errors.smtpPort ? "error" : ""}
+                    className={errorMessage && !formData.smtpPort.trim() ? "error" : ""}
                     disabled={!isCustomProvider}
                   />
                   {isCustomProvider && (
@@ -455,8 +532,8 @@ function EmailMainForm() {
                     </div>
                   )}
                 </div>
-                {errors.smtpPort && (
-                  <span className="error-message">{errors.smtpPort}</span>
+                {errorMessage && !formData.smtpPort.trim() && (
+                  <span className="error-message">SMTP Port is required</span>
                 )}
               </div>
             </div>
@@ -491,12 +568,7 @@ function EmailMainForm() {
                   fontWeight: 500,
                 }}
               >
-                {showHelp ? (
-                  <FiChevronUp style={{ marginRight: "8px" }} />
-                ) : (
-                  <FiChevronDown style={{ marginRight: "8px" }} />
-                )}
-                Need help with email server settings?
+                {showHelp ? '▲' : '▼'} Need help with email server settings?
               </button>
 
               {showHelp && (
@@ -685,7 +757,7 @@ function EmailMainForm() {
                 className="btn-link"
                 onClick={() => setShowAdvanced(!showAdvanced)}
               >
-                {showAdvanced ? <FiChevronUp /> : <FiChevronDown />}
+                {showAdvanced ? '▲' : '▼'}
                 {showAdvanced
                   ? "Hide Advanced Options"
                   : "Show Advanced Options"}
@@ -724,7 +796,6 @@ function EmailMainForm() {
           <div className="form-step">
             <h3>Attachments</h3>
             <p className="form-instruction">
-              <FiInfo className="info-icon" />
               Upload any files you'd like to attach to your email. (Optional)
             </p>
             <div
@@ -733,7 +804,6 @@ function EmailMainForm() {
               }`}
             >
               <div className="file-upload-box">
-                <FiUpload className="upload-icon" />
                 <p>Drag & drop files here or click to browse</p>
                 <input
                   type="file"
@@ -818,8 +888,18 @@ function EmailMainForm() {
   const isLastStep = currentStep === totalSteps;
   const isFirstStep = currentStep === 1;
 
+  // Add axios response interceptor to handle 403 errors globally
+  useEffect(() => {
+    // We don't need to add another interceptor here since we already have one at the top of the file
+    // that handles 403 errors. The interceptor at the top will handle all API errors consistently.
+    
+    // If you need to handle 403 errors differently in this component,
+    // you can add specific logic in the error handling of your API calls.
+  }, []);
+
+  // Wrap the form content in a form element
   return (
-    <div className="email-config-form">
+    <form className="email-config-form" onSubmit={(e) => e.preventDefault()}>
       <div className="form-container">
         <div className="form-header">
           <h2>Email Configuration</h2>
@@ -845,10 +925,9 @@ function EmailMainForm() {
             ))}
           </div>
         </div>
-        {submitError && (
-          <div className="alert alert-error">
-            <FiAlertCircle className="alert-icon" />
-            {submitError}
+        {errorMessage && (
+          <div className="alert alert-error" style={{ marginBottom: '20px' }}>
+            {errorMessage}
           </div>
         )}
 
@@ -863,7 +942,7 @@ function EmailMainForm() {
                 className="btn btn-secondary"
                 onClick={prevStep}
               >
-                <FiChevronLeft /> Back
+                &larr; Back
               </button>
             )}
 
@@ -873,31 +952,29 @@ function EmailMainForm() {
                 className="btn btn-primary"
                 onClick={nextStep}
               >
-                Next <FiChevronRight />
+                Next &rarr;
               </button>
             ) : (
-              <form onSubmit={handleSubmit} style={{ display: "inline" }}>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <span className="spinner"></span> Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <FiCheckCircle /> Submit Configuration
-                    </>
-                  )}
-                </button>
-              </form>
+              <button
+                type="button"
+                className={`btn btn-primary ${isSubmitting ? 'btn-loading' : ''}`}
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="spinner"></span>
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Configuration'
+                )}
+              </button>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </form>
   );
 }
 

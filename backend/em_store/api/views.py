@@ -1,14 +1,88 @@
 import os
 from rest_framework import status, viewsets, mixins, permissions
-from rest_framework.decorators import action, permission_classes
+from rest_framework.decorators import action, permission_classes, api_view
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, JSONParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
-from django.http import FileResponse
+from django.http import FileResponse, JsonResponse
+from django.middleware.csrf import get_token
 
 from campaigns.models import EmailCampaign, CampaignEmailAttachment
 from .serializers import EmailCampaignSerializer, CampaignEmailAttachmentSerializer
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.middleware.csrf import get_token
+from django.views.decorators.http import require_http_methods
+from django.conf import settings
+from django.http import JsonResponse
+import logging
+
+logger = logging.getLogger(__name__)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@require_http_methods(["GET"])
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    """
+    View to get CSRF token with proper CORS headers and cookie settings.
+    This endpoint is exempt from CSRF protection to allow initial token retrieval.
+    """
+    try:
+        # Get the CSRF token
+        token = get_token(request)
+        
+        # Create response with token
+        response = JsonResponse({
+            'status': 'success',
+            'message': 'CSRF token retrieved successfully',
+            'csrfToken': token
+        })
+        
+        # Set the CSRF token in a cookie
+        response.set_cookie(
+            key='csrftoken',
+            value=token,
+            max_age=60 * 60 * 24 * 7,  # 1 week
+            httponly=False,  # Allow JavaScript to access the cookie
+            samesite='Lax',  # Lax for better security
+            secure=not settings.DEBUG,  # Secure in production
+            path='/',  # Available on all paths
+            domain=settings.SESSION_COOKIE_DOMAIN if not settings.DEBUG else None,
+        )
+        
+        # Set CORS headers
+        origin = request.headers.get('Origin', '')
+        allowed_origins = settings.CORS_ALLOWED_ORIGINS if hasattr(settings, 'CORS_ALLOWED_ORIGINS') else []
+        
+        if origin in allowed_origins or settings.DEBUG:
+            response['Access-Control-Allow-Origin'] = origin
+            response['Access-Control-Allow-Credentials'] = 'true'
+        
+        # Add CSRF token to headers
+        response['X-CSRFToken'] = token
+        
+        # Additional CORS headers
+        response['Access-Control-Allow-Headers'] = 'X-Requested-With, Content-Type, Accept, X-CSRFToken, Authorization'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response['Access-Control-Max-Age'] = '3600'  # 1 hour
+        
+        # Add Vary header to prevent caching of CORS responses
+        response['Vary'] = 'Origin'
+        
+        logger.debug(f'CSRF token generated and set for origin: {origin}')
+        return response
+        
+    except Exception as e:
+        logger.error(f'Error generating CSRF token: {str(e)}', exc_info=True)
+        return JsonResponse(
+            {'status': 'error', 'message': 'Failed to generate CSRF token'},
+            status=500
+        )
 
 # Constants for file uploads
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB

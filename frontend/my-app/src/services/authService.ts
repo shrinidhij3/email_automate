@@ -149,10 +149,11 @@ const authService: {
   ): Promise<AuthResponse> {
     try {
       // Use the full endpoint path from config
-      const endpoint = ENDPOINTS.AUTH.REGISTER;
-      console.log("Attempting user registration at:", endpoint);
+      const registerEndpoint = ENDPOINTS.AUTH.REGISTER;
+      console.log("Attempting user registration at:", registerEndpoint);
 
-      const response = await api.post<AuthResponse>(endpoint, {
+      // First, register the user
+      const registerResponse = await api.post<AuthResponse>(registerEndpoint, {
         username,
         email,
         password,
@@ -161,8 +162,19 @@ const authService: {
         last_name: lastName,
       });
 
-      console.log("Registration successful:", response.data);
-      return response.data;
+      console.log("Registration successful:", registerResponse.data);
+      
+      // After successful registration, log the user in
+      try {
+        console.log("Attempting to log in after registration...");
+        const loginResponse = await this.login(username, password);
+        console.log("Login after registration successful:", loginResponse);
+        return loginResponse;
+      } catch (loginError) {
+        console.error("Login after registration failed:", loginError);
+        // Even if login fails, return the registration response
+        return registerResponse.data;
+      }
     } catch (error: unknown) {
       console.error("Registration error:", error);
 
@@ -250,11 +262,20 @@ const authService: {
 
   async isAuthenticated(): Promise<boolean> {
     try {
-      const response = await api.get<{ isAuthenticated: boolean }>(ENDPOINTS.AUTH.SESSION);
-      return response.data.isAuthenticated === true;
+      // First try to get the current user
+      const user = await this.getCurrentUser();
+      return user !== null;
     } catch (error) {
-      console.error("Error checking authentication status:", error);
-      return false;
+      console.warn("getCurrentUser check failed, falling back to session check:", error);
+      
+      // Fallback to session check if getCurrentUser fails
+      try {
+        const response = await api.get<{ isAuthenticated: boolean }>(ENDPOINTS.AUTH.SESSION);
+        return response.data.isAuthenticated === true;
+      } catch (sessionError) {
+        console.error("Session check failed:", sessionError);
+        return false;
+      }
     }
   },
 };

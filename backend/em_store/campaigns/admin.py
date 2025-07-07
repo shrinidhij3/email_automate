@@ -1,11 +1,19 @@
 from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
-from django.urls import reverse
+from django.urls import reverse, path
 from django.utils.safestring import mark_safe
 from django.contrib import messages
+from django.http import HttpResponseRedirect
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+from django.utils.translation import gettext_lazy as _
+from import_export.admin import ImportExportModelAdmin
+from import_export import resources, fields
+from import_export.widgets import ForeignKeyWidget
 from .models import EmailCampaign, CampaignEmailAttachment
+
+User = get_user_model()
 
 class CampaignEmailAttachmentInline(admin.TabularInline):
     model = CampaignEmailAttachment
@@ -21,6 +29,19 @@ class EmailCampaignForm(forms.ModelForm):
     class Meta:
         model = EmailCampaign
         fields = '__all__'
+        widgets = {
+            'password': forms.PasswordInput(render_value=True),
+        }
+
+    def clean_password(self):
+        password = self.cleaned_data.get('password')
+        # If password is being set (not just the placeholder)
+        if password and password != '********':
+            return password
+        # If password is not being changed, return the existing value
+        if self.instance and self.instance.pk:
+            return self.instance.password
+        return password
     
     def clean_password(self):
         password = self.cleaned_data.get('password')
@@ -32,24 +53,48 @@ class EmailCampaignForm(forms.ModelForm):
             return self.instance.password
         return password
 
+
+class CampaignResource(resources.ModelResource):
+    created_by = fields.Field(
+        column_name='created_by',
+        attribute='created_by',
+        widget=ForeignKeyWidget(User, 'username')
+    )
+
+    class Meta:
+        model = EmailCampaign
+        fields = (
+            'id', 'name', 'email', 'provider', 'subject', 'body',
+            'imap_host', 'imap_port', 'smtp_host', 'smtp_port', 'use_ssl',
+            'created_by', 'created_at', 'updated_at', 'notes'
+        )
+        export_order = fields
+        skip_unchanged = True
+        report_skipped = False
+        exclude = ('id', 'password')
+        import_id_fields = ('email',)
+
+
 @admin.register(EmailCampaign)
-class EmailCampaignAdmin(admin.ModelAdmin):
+class EmailCampaignAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     form = EmailCampaignForm
+    resource_class = CampaignResource
     list_display = (
-        'name', 'email', 'provider', 'created_by', 'created_at'
+        'name', 'email', 'provider', 'created_by', 'created_at', 'updated_at'
     )
     list_filter = ('provider', 'created_at')
     search_fields = ('name', 'email', 'subject', 'body')
     readonly_fields = (
-        'created_at', 'updated_at', 
-        'get_decrypted_password_display', 'preview_attachments'
+        'created_at', 'updated_at', 'get_decrypted_password_display', 
+        'preview_attachments', 'created_by'
     )
     date_hierarchy = 'created_at'
     inlines = [CampaignEmailAttachmentInline]
+    actions = ['export_selected']
     
     fieldsets = (
         ('Campaign Information', {
-            'fields': ('name', 'subject', 'body', 'status', 'notes')
+            'fields': ('name', 'subject', 'body', 'notes')
         }),
         ('Email Account', {
             'fields': ('email', 'password', 'get_decrypted_password_display', 'provider')
@@ -63,7 +108,11 @@ class EmailCampaignAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Timing', {
-            'fields': ('created_at', 'updated_at')
+            'fields': (
+                ('created_at', 'updated_at'),
+                'created_by'
+            ),
+            'classes': ('collapse',)
         }),
         ('Attachments', {
             'fields': ('preview_attachments',),
@@ -91,14 +140,44 @@ class EmailCampaignAdmin(admin.ModelAdmin):
     preview_attachments.short_description = 'Attachments'
     preview_attachments.allow_tags = True
     
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser or request.user.has_perm('campaigns.can_manage_all_campaigns'):
+            return qs
+        return qs.filter(created_by=request.user)
+        
     def save_model(self, request, obj, form, change):
-        # Only set created_by if this is a new object
-        if not obj.pk:
+        if not obj.pk:  # New object
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+        
+    @admin.action(description='Export selected campaigns')
+    def export_selected(self, request, queryset):
+        # This will use django-import-export's export action
+        pass
+
+class CampaignEmailAttachmentResource(resources.ModelResource):
+    email_campaign = fields.Field(
+        column_name='email_campaign',
+        attribute='email_campaign',
+        widget=ForeignKeyWidget(EmailCampaign, 'name')
+    )
+    
+    class Meta:
+        model = CampaignEmailAttachment
+        fields = (
+            'id', 'original_filename', 'content_type', 'file_size',
+            'email_campaign', 'created_at', 'updated_at'
+        )
+        export_order = fields
+        skip_unchanged = True
+        report_skipped = False
+        exclude = ('id', 'file')
+
 
 @admin.register(CampaignEmailAttachment)
-class CampaignEmailAttachmentAdmin(admin.ModelAdmin):
+class CampaignEmailAttachmentAdmin(ImportExportModelAdmin, admin.ModelAdmin):
+    resource_class = CampaignEmailAttachmentResource
     list_display = (
         'original_filename', 'get_campaign_name', 'content_type', 
         'get_file_size_display', 'created_at', 'download_link'
@@ -107,9 +186,15 @@ class CampaignEmailAttachmentAdmin(admin.ModelAdmin):
     search_fields = ('original_filename', 'email_campaign__name', 'email_campaign__email')
     readonly_fields = (
         'original_filename', 'content_type', 'file_size', 
-        'created_at', 'updated_at', 'file_preview'
+        'created_at', 'updated_at', 'file_preview', 'download_link'
     )
     date_hierarchy = 'created_at'
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser or request.user.has_perm('campaigns.can_manage_all_campaigns'):
+            return qs
+        return qs.filter(email_campaign__created_by=request.user)
     
     def get_campaign_name(self, obj):
         return obj.email_campaign.name

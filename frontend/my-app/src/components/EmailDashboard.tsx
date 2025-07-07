@@ -27,7 +27,7 @@ interface CsvEntry {
   day_nine?: string | null;
 }
 
-const API_BASE_URL = "http://localhost:8000/api/email-entries/";
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/email-entries/`;
 
 // Function to get CSRF token from cookies
 const getCsrfToken = (): string | null => {

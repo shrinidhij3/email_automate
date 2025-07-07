@@ -30,6 +30,8 @@ from .views import DebugURLsView, TestAdminView
 from unread_emails.views import AdminSubmissionListView
 from . import views
 from .views import landing_page
+# Import get_csrf_token from the correct module
+from api.views import get_csrf_token
 
 # Schema view for API documentation
 schema_view = get_schema_view(
@@ -76,8 +78,18 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     
-    # Include API app URLs
-    path('api/', include('api.urls')),  # Include API app URLs
+    # API endpoints
+    path('api/auth/', include('auth_app.urls')),  # Authentication endpoints
+    path('api/accounts/', include('accounts.urls')),  # Add accounts URLs
+    path('api/email-entries/', include('email_entry.urls')),  # Email entries API
+    path('api/unread-emails/', include('unread_emails.urls')),  # Unread emails API
+    path('api/campaigns/', include('campaigns.urls')),  # Email campaigns API
+    
+    # CSRF token endpoint - must be after other API routes
+    path('api/csrf-token/', get_csrf_token, name='get_csrf_token'),
+    
+    # Include API app URLs (keep this last to avoid overriding other routes)
+    path('api/', include('api.urls')),
     
     # Debug endpoint
     path('debug/urls/', views.list_urls, name='list-urls'),  # Debug URL to list all URLs

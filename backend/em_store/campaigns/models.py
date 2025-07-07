@@ -124,7 +124,7 @@ class EmailCampaign(models.Model):
         self._password = self.password
     
     def __str__(self):
-        return f"{self.name} ({self.get_status_display()}) - {self.email}"
+        return f"{self.name} - {self.email} ({self.provider})"
     
     def save(self, *args, **kwargs):
         # Encrypt password if it's new or changed
@@ -247,8 +247,8 @@ class CampaignEmailAttachment(models.Model):
             # The URL name is based on the ViewSet's basename and the action name
             path = reverse('attachment-download', kwargs={'pk': self.pk})
             
-            # Use Cloudflare tunnel URL from settings, fallback to SITE_DOMAIN or localhost
-            domain = getattr(settings, 'CLOUDFLARE_TUNNEL_URL', 
+            # Use RENDER_EXTERNAL_URL from settings, fallback to SITE_DOMAIN or localhost
+            domain = getattr(settings, 'RENDER_EXTERNAL_URL', 
                           getattr(settings, 'SITE_DOMAIN', 'http://localhost:8000'))
             # Ensure domain doesn't end with a slash
             domain = domain.rstrip('/')

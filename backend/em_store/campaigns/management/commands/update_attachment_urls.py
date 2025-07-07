@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from campaigns.models import CampaignEmailAttachment
 
 class Command(BaseCommand):
-    help = 'Update download URLs for all attachments to use the Cloudflare tunnel URL'
+    help = 'Update download URLs for all attachments to use the Render URL'
 
     def handle(self, *args, **options):
         updated = 0

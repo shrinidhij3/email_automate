@@ -230,8 +230,8 @@ const EmailConfigForm: React.FC = () => {
       // Try to submit the form (but don't fail if it doesn't work)
       let submissionId = null;
       try {
-        // Use API_BASE_URL directly instead of AUTH_BASE_URL to avoid duplicate 'auth' segments
-        const endpoint = `${API_BASE_URL}unread-emails/submissions/`;
+        // Use the correct API endpoint with /api/ prefix
+        const endpoint = `${API_BASE_URL}api/unread-emails/`;
         console.log("Attempting to submit to:", endpoint);
 
         const config = {
