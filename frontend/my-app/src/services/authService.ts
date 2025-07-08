@@ -27,22 +27,30 @@ const api = axios.create({
     'X-Requested-With': 'XMLHttpRequest',
   },
   xsrfCookieName: 'csrftoken',
-  // Django expects the CSRF token in the HTTP_X_CSRFTOKEN header
-  xsrfHeaderName: 'X-CSRFToken',  // This will be transformed to HTTP_X_CSRFTOKEN by Django
-  // Important for cross-domain requests
-  withXSRFToken: true,
+  xsrfHeaderName: 'X-CSRFToken',  // Standard header name
   timeout: 10000,  // 10 second timeout
 });
 
-// Add a request interceptor to transform the header name if needed
+// Add request interceptor to handle CSRF token
 api.interceptors.request.use(config => {
-  // If there's a CSRF token in the headers, make sure it's using the correct header name
-  if (config.headers && config.headers['X-CSRFToken']) {
-    config.headers['HTTP_X_CSRFTOKEN'] = config.headers['X-CSRFToken'];
-    delete config.headers['X-CSRFToken'];
+  // Get CSRF token from cookies
+  const csrfToken = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('csrftoken='))
+    ?.split('=')[1];
+
+  // Add CSRF token to headers if it exists
+  if (csrfToken) {
+    // Set both header formats to be safe
+    config.headers['X-CSRFToken'] = csrfToken;
+    config.headers['HTTP_X_CSRFTOKEN'] = csrfToken;
   }
+  
   return config;
 });
+
+// No need to transform the header name anymore as we're using X-CSRFToken consistently
+// The header will be automatically added by Axios using xsrfHeaderName
 
 // Add request interceptor for logging
 api.interceptors.request.use(
@@ -72,22 +80,46 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // If 403 and not a retry, try to refresh CSRF token
-    if (error.response?.status === 403 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      console.log('CSRF token may be invalid, attempting to refresh...');
+    // Don't retry if it's already a retry or not a 403 error
+    if (error.response?.status !== 403 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+    
+    // Don't retry on login/register endpoints to prevent loops
+    const skipRetryEndpoints = [
+      '/api/auth/login/',
+      '/api/auth/register/',
+      '/api/auth/csrf-token/'
+    ];
+    
+    if (skipRetryEndpoints.some(endpoint => originalRequest.url?.includes(endpoint))) {
+      return Promise.reject(error);
+    }
+    
+    console.log('[API] CSRF token may be invalid, attempting to refresh...');
+    originalRequest._retry = true;
+    
+    try {
+      // Get new CSRF token
+      const csrfToken = await fetchCSRFToken();
       
-      try {
-        await fetchCSRFToken();
-        // Retry the original request with new CSRF token
-        return api(originalRequest);
-      } catch (refreshError) {
-        console.error('Failed to refresh CSRF token:', refreshError);
-        // Redirect to login on refresh failure
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
+      // Update the original request headers with new CSRF token
+      if (csrfToken) {
+        originalRequest.headers['X-CSRFToken'] = csrfToken;
+        originalRequest.headers['HTTP_X_CSRFTOKEN'] = csrfToken;
       }
+      
+      console.log('[API] Retrying original request with new CSRF token');
+      return api(originalRequest);
+      
+    } catch (refreshError) {
+      console.error('[API] Failed to refresh CSRF token:', refreshError);
+      // Clear auth state and redirect to login
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('authState');
+        window.location.href = '/login?session_expired=1';
+      }
+      return Promise.reject(refreshError);
     }
     
     return Promise.reject(error);

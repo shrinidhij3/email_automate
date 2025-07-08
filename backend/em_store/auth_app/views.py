@@ -298,15 +298,20 @@ def csrf(request):
         
         # Set the CSRF cookie with secure settings
         is_secure = request.is_secure()
-        response.set_cookie(
-            'csrftoken',
-            csrf_token,
-            max_age=60 * 60 * 24 * 7,  # 1 week
-            secure=is_secure,
-            httponly=False,  # Must be accessible from JavaScript
-            samesite='None' if is_secure else 'Lax',
-            domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and not settings.DEBUG else None
-        )
+        cookie_kwargs = {
+            'key': 'csrftoken',
+            'value': csrf_token,
+            'max_age': 60 * 60 * 24 * 7,  # 1 week
+            'secure': is_secure,
+            'httponly': False,  # Must be accessible from JavaScript
+            'samesite': 'None' if is_secure else 'Lax'
+        }
+        
+        # Only set domain in production
+        if not settings.DEBUG and hasattr(settings, 'CSRF_COOKIE_DOMAIN') and settings.CSRF_COOKIE_DOMAIN:
+            cookie_kwargs['domain'] = settings.CSRF_COOKIE_DOMAIN
+            
+        response.set_cookie(**cookie_kwargs)
         
         # Log the response before sending
         log_response(response, "[CSRF] ")
