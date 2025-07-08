@@ -106,13 +106,14 @@ DATABASES = {
     }
 }
 
-# CORS configuration for development
+# CORS configuration
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'https://email-automate-eight.vercel.app',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -148,21 +149,22 @@ CORS_EXPOSE_HEADERS = [
 
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
-# CSRF configuration for development
+# CSRF configuration
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'https://email-automate-eight.vercel.app',
 ]
 
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
-CSRF_COOKIE_SECURE = False  # False for development
-CSRF_COOKIE_SAMESITE = 'Lax'  # Lax for development
-CSRF_COOKIE_DOMAIN = None  # None for development
+CSRF_COOKIE_SECURE = True  # True for production
+CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-site cookies
+CSRF_COOKIE_DOMAIN = '.onrender.com'  # Allow subdomains
 CSRF_COOKIE_PATH = '/'
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
 
@@ -171,9 +173,9 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = False  # False for development
-SESSION_COOKIE_SAMESITE = 'Lax'  # Lax for development
-SESSION_COOKIE_DOMAIN = None  # None for development
+SESSION_COOKIE_SECURE = True  # True for production
+SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-site cookies
+SESSION_COOKIE_DOMAIN = '.onrender.com'  # Allow subdomains
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'

@@ -379,19 +379,57 @@ def session_view(request):
 @csrf_exempt
 @require_http_methods(["GET", "OPTIONS"])
 def user_view(request):
+    # Get the origin from the request
+    origin = request.headers.get('Origin', '')
+    allowed_origins = [
+        'https://email-automate-eight.vercel.app',
+        'https://email-automate-ob1a.onrender.com'
+    ]
+    
+    # Check if the origin is allowed
+    is_allowed_origin = any(origin.startswith(allowed) for allowed in allowed_origins)
+    
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
-        response = JsonResponse({})
-        response['Access-Control-Allow-Origin'] = 'https://email-automate-eight.vercel.app'
-        response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRFToken'
-        response['Access-Control-Allow-Credentials'] = 'true'
-        response['Access-Control-Max-Age'] = '86400'
+        response = JsonResponse({}, status=200)
+        if is_allowed_origin:
+            response['Access-Control-Allow-Origin'] = origin
+            response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRFToken, X-Requested-With, Accept, Cache-Control, Pragma'
+            response['Access-Control-Allow-Credentials'] = 'true'
+            response['Access-Control-Max-Age'] = '86400'
+            response['Vary'] = 'Origin'
         return response
     
-    # Your existing user logic
-    user_data = {'user': 'information'}
-    response = JsonResponse(user_data)
-    response['Access-Control-Allow-Origin'] = 'https://email-automate-eight.vercel.app'
-    response['Access-Control-Allow-Credentials'] = 'true'
-    return response
+    # Handle GET request
+    if request.method == 'GET':
+        try:
+            user = request.user if hasattr(request, 'user') and request.user.is_authenticated else None
+            user_data = {
+                'status': 'success',
+                'user': {
+                    'is_authenticated': user is not None,
+                    'username': user.username if user else None,
+                    'email': user.email if user else None,
+                    'first_name': user.first_name if user else None,
+                    'last_name': user.last_name if user else None,
+                }
+            }
+            response = JsonResponse(user_data)
+            if is_allowed_origin:
+                response['Access-Control-Allow-Origin'] = origin
+                response['Access-Control-Allow-Credentials'] = 'true'
+                response['Vary'] = 'Origin'
+            return response
+            
+        except Exception as e:
+            logger.error(f'Error in user_view: {str(e)}', exc_info=True)
+            response = JsonResponse(
+                {'status': 'error', 'message': 'An error occurred'},
+                status=500
+            )
+            if is_allowed_origin:
+                response['Access-Control-Allow-Origin'] = origin
+                response['Access-Control-Allow-Credentials'] = 'true'
+                response['Vary'] = 'Origin'
+            return response
