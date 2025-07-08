@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "cd frontend/my-app && npm install && npm run build",
+  "outputDirectory": "frontend/my-app/dist",
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
