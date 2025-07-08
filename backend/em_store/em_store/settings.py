@@ -149,7 +149,7 @@ CSRF_COOKIE_SAMESITE = 'None'  # Must be None for cross-domain
 CSRF_COOKIE_SECURE = True     # Must be True when SameSite=None
 CSRF_COOKIE_PATH = '/'
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
-CSRF_COOKIE_DOMAIN = '.render.com'  # Set to your parent domain
+CSRF_COOKIE_DOMAIN = '.onrender.com'  # Set to your parent domain
 
 # Session configuration for cross-domain
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
@@ -161,7 +161,7 @@ SESSION_COOKIE_SECURE = True     # Must be True when SameSite=None
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'
-SESSION_COOKIE_DOMAIN = '.render.com'  # Set to your parent domain
+SESSION_COOKIE_DOMAIN = '.onrender.com'  # Set to your parent domain
 
 # CORS configuration for cross-domain
 CORS_ALLOW_CREDENTIALS = True  # Important for credentials

@@ -72,7 +72,8 @@ boto3.setup_default_session(
 ALLOWED_HOSTS = [
     os.getenv('RENDER_EXTERNAL_HOSTNAME', 'localhost'),
     'email-automate-ob1a.onrender.com',
-    'email-automate-frontend.onrender.com'
+    'email-automate-frontend.onrender.com',
+    'email-automate-eight.vercel.app',
 ]
 
 # HTTPS settings
@@ -104,8 +105,14 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
     'https://email-automate-eight.vercel.app',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
 CORS_ORIGIN_WHITELIST = CORS_ALLOWED_ORIGINS
+CORS_ORIGIN_REGEX_WHITELIST = [
+    r'^https://\w+\.vercel\.app$',
+    r'^https://\w+\-\w+\.vercel\.app$',
+]
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -124,8 +131,11 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'cache-control',
+    'pragma',
 ]
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
 
 # CSRF settings - Critical for CORS
 CSRF_TRUSTED_ORIGINS = [
@@ -136,18 +146,49 @@ CSRF_COOKIE_HTTPONLY = False  # Required for JavaScript to read CSRF token
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-site requests
-CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Specific to your domain
+CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Match with cookie domain
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_COOKIE_PATH = '/'
+CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
 
 # Session settings for CORS
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-site requests
-SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Specific to your domain
+SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Match with CSRF domain
+SESSION_COOKIE_PATH = '/'
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14  # 2 weeks
 
 # CORS credentials and cookie settings
 CORS_ALLOW_CREDENTIALS = True
+
+# Add CORS middleware configuration
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+def cors_headers_middleware(get_response):
+    def middleware(request):
+        response = get_response(request)
+        if request.method == 'OPTIONS':
+            response['Access-Control-Allow-Headers'] = ', '.join(CORS_ALLOW_HEADERS)
+            response['Access-Control-Allow-Methods'] = ', '.join(CORS_ALLOW_METHODS)
+            response['Access-Control-Allow-Credentials'] = 'true'
+            response['Access-Control-Max-Age'] = str(86400)
+        return response
+    return middleware
+
+MIDDLEWARE.append('em_store.production_settings.cors_headers_middleware')
 
 # Set cookie domain in production
 if not DEBUG:
