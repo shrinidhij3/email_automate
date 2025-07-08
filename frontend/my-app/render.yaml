@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: email-automate-frontend
+    env: node
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: NODE_VERSION
+        value: 18.x
+      - key: VITE_API_BASE_URL
+        value: https://email-automate-ob1a.onrender.com
+    routes:
+      - type: rewrite
+        source: /(.*)
+        destination: /index.html

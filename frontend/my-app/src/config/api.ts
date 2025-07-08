@@ -1,7 +1,18 @@
-// API Configuration for local development with production backend
-const PRODUCTION_BACKEND = "https://email-automate-ob1a.onrender.com";
-const LOCAL_BACKEND = "http://localhost:8000";
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? LOCAL_BACKEND : PRODUCTION_BACKEND);
+// API Configuration for both development and production environments
+const DEFAULT_LOCAL_BACKEND = "http://localhost:8000";
+
+// Get the base URL from environment variables or use defaults
+const getBaseUrl = () => {
+  // In production (on Render), use relative URLs for same-origin requests
+  if (import.meta.env.PROD) {
+    return ''; // Use relative URLs in production
+  }
+  
+  // In development, use the environment variable or default to local backend
+  return import.meta.env.VITE_API_BASE_URL || DEFAULT_LOCAL_BACKEND;
+};
+
+const BASE_URL = getBaseUrl();
 
 // Remove trailing slashes and ensure we don't have duplicate /api/
 export const API_BASE_URL = BASE_URL.replace(/(\/)+$/, "");
