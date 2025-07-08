@@ -102,17 +102,15 @@ SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN
 # CORS and CSRF settings for production
 CORS_ALLOWED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
-    'https://email-automate-git-main-shrinidhi-7823s-projects.vercel.app'  # Add your Vercel URL here
+    'https://email-automate-eight.vercel.app',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
-    'https://email-automate-git-main-shrinidhi-7823s-projects.vercel.app',  # Add your Vercel URL here
-    'http://localhost:5173',
-    'http://127.0.0.1:5173'
+    'https://email-automate-eight.vercel.app',
 ]
 
-# Cookie settings
+# Cookie settings for cross-origin requests
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_HTTPONLY = True
@@ -122,20 +120,12 @@ CSRF_COOKIE_SAMESITE = 'None'     # Allow cross-site cookies
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_PATH = '/'
 SESSION_COOKIE_PATH = '/'
+CORS_ALLOW_CREDENTIALS = True
 
-# Only set domain in production
+# Set cookie domain in production
 if not DEBUG:
     CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
     SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
-
-# Cross-site cookie and CORS settings for frontend-backend auth
-CSRF_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
-SESSION_COOKIE_SAMESITE = 'None'
-SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
-CORS_ALLOW_CREDENTIALS = True
 
 # Static files with WhiteNoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
