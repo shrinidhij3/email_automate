@@ -99,17 +99,34 @@ COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None)  # Will be None in development
 CSRF_COOKIE_DOMAIN = COOKIE_DOMAIN
 SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN
 
-# Production CORS settings
+# CORS and CSRF settings for production
 CORS_ALLOWED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
+    'https://email-automate-git-main-shrinidhi-7823s-projects.vercel.app'  # Add your Vercel URL here
 ]
 
-# Production CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
+    'https://email-automate-git-main-shrinidhi-7823s-projects.vercel.app',  # Add your Vercel URL here
     'http://localhost:5173',
     'http://127.0.0.1:5173'
 ]
+
+# Cookie settings
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+SESSION_COOKIE_SAMESITE = 'None'  # Allow cross-site cookies
+CSRF_COOKIE_SAMESITE = 'None'     # Allow cross-site cookies
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_PATH = '/'
+SESSION_COOKIE_PATH = '/'
+
+# Only set domain in production
+if not DEBUG:
+    CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
+    SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
 
 # Cross-site cookie and CORS settings for frontend-backend auth
 CSRF_COOKIE_SAMESITE = 'None'

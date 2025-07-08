@@ -1,8 +1,5 @@
 {
-  "buildCommand": "cd frontend/my-app && npm install && npm run build",
-  "outputDirectory": "frontend/my-app/dist",
-  "installCommand": "cd frontend/my-app && npm install",
-  "devCommand": "cd frontend/my-app && npm run dev",
+  "version": 2,
   "builds": [
     {
       "src": "frontend/my-app/package.json",
@@ -19,7 +16,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/my-app/index.html"
+      "dest": "/index.html"
     }
   ]
 }
