@@ -36,7 +36,6 @@ else:
         'localhost',
         '127.0.0.1',
         'email-automate-ob1a.onrender.com',
-        'email-automate-frontend.onrender.com',
     ]
 
 # Application definition
@@ -116,7 +115,6 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'https://email-automate-ob1a.onrender.com',
-    'https://email-automate-frontend.onrender.com',
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -179,11 +177,9 @@ else:
     # Production settings for Render
     CORS_ALLOWED_ORIGINS = [
         'https://email-automate-ob1a.onrender.com',
-        'https://email-automate-frontend.onrender.com'
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://email-automate-ob1a.onrender.com',
-        'https://email-automate-frontend.onrender.com'
     ]
     SESSION_COOKIE_DOMAIN = '.render.com'
     CSRF_COOKIE_DOMAIN = '.render.com'
