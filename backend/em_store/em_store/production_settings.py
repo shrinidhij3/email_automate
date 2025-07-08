@@ -99,16 +99,42 @@ COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None)  # Will be None in development
 CSRF_COOKIE_DOMAIN = COOKIE_DOMAIN
 SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN
 
-# CORS and CSRF settings for production
+# CORS settings for production
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
     'https://email-automate-eight.vercel.app',
 ]
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
+# CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
     'https://email-automate-eight.vercel.app',
 ]
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = 'None'  # Allow cross-site cookies
 
 # Cookie settings for cross-origin requests
 SESSION_COOKIE_SECURE = True
