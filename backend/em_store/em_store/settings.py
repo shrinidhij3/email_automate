@@ -31,6 +31,10 @@ for var in required_env_vars:
 # Hosts configuration
 if DEBUG:
     ALLOWED_HOSTS = ['*']
+    try:
+        from .local_settings import *  # noqa
+    except ImportError:
+        pass
 else:
     ALLOWED_HOSTS = [
         'localhost',
@@ -167,22 +171,6 @@ if DEBUG:
         'http://localhost:5173',
         'http://127.0.0.1:5173',
     ]
-    CSRF_TRUSTED_ORIGINS = [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-    ]
-    SESSION_COOKIE_DOMAIN = None
-    CSRF_COOKIE_DOMAIN = None
-else:
-    # Production settings for Render
-    CORS_ALLOWED_ORIGINS = [
-        'https://email-automate-ob1a.onrender.com',
-    ]
-    CSRF_TRUSTED_ORIGINS = [
-        'https://email-automate-ob1a.onrender.com',
-    ]
-    SESSION_COOKIE_DOMAIN = '.render.com'
-    CSRF_COOKIE_DOMAIN = '.render.com'
 
 # Allow all methods and headers for preflight requests
 CORS_ALLOW_METHODS = [
@@ -270,7 +258,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Media files
 if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
     # Use R2 for file storage
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    STORAGES['default']['BACKEND'] = 'storages.backends.s3boto3.S3Boto3Storage'
     MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com/'
     if hasattr(globals(), 'AWS_S3_CUSTOM_DOMAIN'):
         MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'
@@ -288,11 +276,37 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
+# Local development storage settings
+if DEBUG:
+    # Use local file system for development
+    MEDIA_URL = '/media/'
+    
+# Use local file system for static files
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+   
+# Configure storage backends
+STORAGES = {
+    'default': {
+        'BACKEND': (
+            'django.core.files.storage.FileSystemStorage' if DEBUG
+            else 'storages.backends.s3boto3.S3Boto3Storage'
+        ),
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# Media URL configuration
+if DEBUG:
+    MEDIA_URL = '/media/'
+else:
+    MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com/media/'
+    if hasattr(globals(), 'AWS_S3_CUSTOM_DOMAIN'):
+        MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
 
-# Media files (user-uploaded files)
-MEDIA_URL = '/media/'
+# Media files root directory
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Ensure directories exist
