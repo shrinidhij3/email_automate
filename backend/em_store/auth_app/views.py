@@ -400,7 +400,7 @@ def user_view(request):
     # Get the origin from the request
     origin = request.headers.get('Origin', '')
     allowed_origins = [
-        'https://email-automate-eight.vercel.app',
+        'https://email-automate-1-1hwv.onrender.com',
         'https://email-automate-ob1a.onrender.com'
     ]
     

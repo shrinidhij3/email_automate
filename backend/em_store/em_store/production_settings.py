@@ -11,7 +11,7 @@ DEBUG = False
 ALLOWED_HOSTS = [
     os.getenv('RENDER_EXTERNAL_HOSTNAME', 'localhost'),
     'email-automate-ob1a.onrender.com',
-    'email-automate-eight.vercel.app',
+    'email-automate-1-1hwv.onrender.com',
 ]
 
 # Production database
@@ -32,7 +32,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
 if not CORS_ALLOWED_ORIGINS[0]:  # If empty string, use default
     CORS_ALLOWED_ORIGINS = [
-        'https://email-automate-eight.vercel.app',
+        'https://email-automate-1-1hwv.onrender.com',
         'https://email-automate-ob1a.onrender.com',
     ]
 
@@ -81,7 +81,7 @@ CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
 if not CSRF_TRUSTED_ORIGINS[0]:  # If empty string, use default
     CSRF_TRUSTED_ORIGINS = [
-        'https://email-automate-eight.vercel.app',
+        'https://email-automate-1-1hwv.onrender.com',
         'https://email-automate-ob1a.onrender.com',
     ]
 

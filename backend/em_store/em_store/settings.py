@@ -113,7 +113,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://email-automate-eight.vercel.app',
+    'https://email-automate-1-1hwv.onrender.com',
 ]
 
 # Allow all methods needed by the frontend
@@ -166,7 +166,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://email-automate-eight.vercel.app',
+    'https://email-automate-1-1hwv.onrender.com',
 ]
 
 # CSRF settings
