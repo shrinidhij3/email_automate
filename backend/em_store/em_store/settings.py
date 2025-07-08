@@ -133,13 +133,13 @@ CORS_ALLOW_HEADERS = [
     'authorization',
     'content-type',
     'dnt',
+    'expires',  # Adding expires header for cache control
     'origin',
     'user-agent',
     'x-csrftoken',  # Standard CSRF token header
     'x-requested-with',
     'cache-control',
     'pragma',
-    'x-csrftoken',  # Django's default CSRF header
     'x-xsrf-token',  # Some libraries use this
 ]
 

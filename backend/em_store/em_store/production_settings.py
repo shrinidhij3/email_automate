@@ -58,6 +58,7 @@ CORS_ALLOW_HEADERS = [
     'authorization',
     'content-type',
     'dnt',
+    'expires',  # Adding expires header for cache control
     'origin',
     'user-agent',
     'x-csrftoken',
