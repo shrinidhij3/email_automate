@@ -10,5 +10,6 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('session/', views.session_view, name='session'),
+    path('user/', views.user_view, name='user'),
     # CSRF token endpoint moved to main urls.py for consistency
 ]

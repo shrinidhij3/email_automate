@@ -8,6 +8,9 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db import IntegrityError
 from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 # Get an instance of a logger
 logger = logging.getLogger('auth_app')
@@ -372,5 +375,23 @@ def session_view(request):
     # Log the response
     log_response(response, "[SESSION] ")
     return response
+
+@csrf_exempt
+@require_http_methods(["GET", "OPTIONS"])
+def user_view(request):
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = JsonResponse({})
+        response['Access-Control-Allow-Origin'] = 'https://email-automate-eight.vercel.app'
+        response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRFToken'
+        response['Access-Control-Allow-Credentials'] = 'true'
+        response['Access-Control-Max-Age'] = '86400'
+        return response
     
+    # Your existing user logic
+    user_data = {'user': 'information'}
+    response = JsonResponse(user_data)
+    response['Access-Control-Allow-Origin'] = 'https://email-automate-eight.vercel.app'
+    response['Access-Control-Allow-Credentials'] = 'true'
     return response

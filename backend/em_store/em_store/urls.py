@@ -66,12 +66,7 @@ urlpatterns = [
     path('', RedirectView.as_view(url='/api/docs/', permanent=False), name='home'),
     
     # Authentication endpoints - all under /api/auth/
-    path('api/auth/', include([
-        # Include auth_app URLs under /api/auth/
-        path('', include('auth_app.urls')),
-        # User endpoint
-        path('user/', get_current_user, name='get_current_user'),
-    ])),
+    path('api/auth/', include('auth_app.urls')),
     
     # API endpoints
     path('api/accounts/', include('accounts.urls')),  # User accounts API
