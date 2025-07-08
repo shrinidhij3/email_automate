@@ -7,81 +7,12 @@ from .settings import *
 # Override for production
 DEBUG = False
 
-# AWS S3 and R2 Configuration
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', 'email-autoamation')
-AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL', 'https://r2.cloudflarestorage.com')
-AWS_DEFAULT_ACL = 'public-read'
-AWS_QUERYSTRING_AUTH = False
-AWS_S3_FILE_OVERWRITE = False
-AWS_S3_VERIFY = False  # Set to False only for testing without SSL verification
-
-# Storage settings
-STORAGES = {
-    'default': {
-        'BACKEND': 'em_store.storage_backends.R2MediaStorage',
-    },
-    'staticfiles': {
-        'BACKEND': 'em_store.storage_backends.R2StaticStorage',
-    },
-}
-
-# Media files
-MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Static files
-STATIC_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# Boto3 configuration
-AWS_S3_OBJECT_PARAMETERS = {
-    'CacheControl': 'max-age=86400',
-}
-
-# SSL Configuration
-import ssl
-import certifi
-
-# Create a custom SSL context
-ssl_context = ssl.create_default_context(cafile=certifi.where())
-ssl_context.verify_mode = ssl.CERT_REQUIRED
-
-# Configure boto3 to use the custom SSL context
-import boto3
-from botocore.config import Config
-
-s3_config = Config(
-    region_name='auto',
-    signature_version='s3v4',
-    s3={
-        'addressing_style': 'virtual',
-        'use_ssl': True,
-        'verify': True,
-    }
-)
-
-# Override the default S3 client configuration
-boto3.setup_default_session(
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name='auto'
-)
-
+# Production hosts
 ALLOWED_HOSTS = [
     os.getenv('RENDER_EXTERNAL_HOSTNAME', 'localhost'),
     'email-automate-ob1a.onrender.com',
-    'email-automate-frontend.onrender.com',
     'email-automate-eight.vercel.app',
 ]
-
-# HTTPS settings
-SECURE_SSL_REDIRECT = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
 
 # Production database
 DATABASES = {
@@ -96,23 +27,22 @@ DATABASES = {
     }
 }
 
-COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None)  # Will be None in development
-CSRF_COOKIE_DOMAIN = COOKIE_DOMAIN
-SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN
-
-# CORS settings for production
+# CORS settings for production - FIXED VERSION
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    'https://email-automate-ob1a.onrender.com',
-    'https://email-automate-eight.vercel.app',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-]
-CORS_ORIGIN_WHITELIST = CORS_ALLOWED_ORIGINS
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+if not CORS_ALLOWED_ORIGINS[0]:  # If empty string, use default
+    CORS_ALLOWED_ORIGINS = [
+        'https://email-automate-eight.vercel.app',
+        'https://email-automate-ob1a.onrender.com',
+    ]
+
+# Add regex patterns for Vercel preview deployments
 CORS_ORIGIN_REGEX_WHITELIST = [
     r'^https://\w+\.vercel\.app$',
     r'^https://\w+\-\w+\.vercel\.app$',
+    r'^https://email-automate-eight-.*\.vercel\.app$',
 ]
+
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -121,6 +51,7 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
+
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -134,89 +65,139 @@ CORS_ALLOW_HEADERS = [
     'cache-control',
     'pragma',
 ]
-CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
-CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
 
-# CSRF settings - Critical for CORS
-CSRF_TRUSTED_ORIGINS = [
-    'https://email-automate-ob1a.onrender.com',
-    'https://email-automate-eight.vercel.app',
+CORS_EXPOSE_HEADERS = [
+    'Content-Type',
+    'X-CSRFToken',
+    'Content-Length',
+    'X-Requested-With',
+    'Set-Cookie',
 ]
-CSRF_COOKIE_HTTPONLY = False  # Required for JavaScript to read CSRF token
-CSRF_USE_SESSIONS = False
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-site requests
-CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Match with cookie domain
+
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+
+# CSRF settings for production - FIXED for cross-origin
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+if not CSRF_TRUSTED_ORIGINS[0]:  # If empty string, use default
+    CSRF_TRUSTED_ORIGINS = [
+        'https://email-automate-eight.vercel.app',
+        'https://email-automate-ob1a.onrender.com',
+    ]
+
+CSRF_COOKIE_SECURE = True  # True for production HTTPS
+CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
+CSRF_COOKIE_DOMAIN = os.getenv('CSRF_COOKIE_DOMAIN', '.onrender.com')
+CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_COOKIE_PATH = '/'
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
 
-# Session settings for CORS
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_SECURE = True
+# Session settings for production - FIXED for cross-origin
+SESSION_COOKIE_SECURE = True  # True for production HTTPS
+SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
+SESSION_COOKIE_DOMAIN = os.getenv('SESSION_COOKIE_DOMAIN', '.onrender.com')
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-site requests
-SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Match with CSRF domain
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 14  # 2 weeks
+SESSION_COOKIE_NAME = 'sessionid'
+SESSION_COOKIE_AGE = 1209600  # 2 weeks
 
-# CORS credentials and cookie settings
-CORS_ALLOW_CREDENTIALS = True
+# HTTPS settings for production
+SECURE_SSL_REDIRECT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 
-# Add CORS middleware configuration
-MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+# Additional security headers
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
-def cors_headers_middleware(get_response):
-    def middleware(request):
-        response = get_response(request)
-        if request.method == 'OPTIONS':
-            response['Access-Control-Allow-Headers'] = ', '.join(CORS_ALLOW_HEADERS)
-            response['Access-Control-Allow-Methods'] = ', '.join(CORS_ALLOW_METHODS)
-            response['Access-Control-Allow-Credentials'] = 'true'
-            response['Access-Control-Max-Age'] = str(86400)
-        return response
-    return middleware
+# Cloudflare R2 Configuration
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', 'email-automation')
+AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
+AWS_DEFAULT_ACL = None  # R2 doesn't use ACLs
+AWS_S3_REGION_NAME = 'auto'  # R2 uses 'auto' region
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+AWS_S3_VERIFY = True  # Enable SSL verification for production
+AWS_QUERYSTRING_AUTH = False
+AWS_S3_FILE_OVERWRITE = False
 
-MIDDLEWARE.append('em_store.production_settings.cors_headers_middleware')
+# R2 object parameters
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
 
-# Set cookie domain in production
-if not DEBUG:
-    CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
-    SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'
+# Storage settings for production
+STORAGES = {
+    'default': {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
-# Static files with WhiteNoise
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Ensure Cloudflare R2 is used for media files in production
-if os.getenv('AWS_ACCESS_KEY_ID') and os.getenv('AWS_SECRET_ACCESS_KEY') and os.getenv('AWS_STORAGE_BUCKET_NAME'):
-    # Configure file storage
-    STORAGES = {
-        'default': {
-            'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
-        },
-        'staticfiles': {
-            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
-        },
-    }
-    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
-    AWS_DEFAULT_ACL = os.getenv('AWS_DEFAULT_ACL', 'public-read')
-    AWS_S3_OBJECT_PARAMETERS = {
-        'CacheControl': 'max-age=86400',
-    }
-    
+# Media files configuration for production - with fallback to local storage
+if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
+    # Use S3/R2 for storage if credentials are available
+    MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.dev/'
     if os.getenv('AWS_S3_CUSTOM_DOMAIN'):
-        AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
-        MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'
-    else:
-        MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com/'
+        MEDIA_URL = f'https://{os.getenv("AWS_S3_CUSTOM_DOMAIN")}/'
+    
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+    }
+else:
+    # Fallback to local file system storage
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    STORAGES['default'] = {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    }
+
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Logging configuration for production
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message} {pathname}:{lineno}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file_errors': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': '/tmp/django_errors.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file_errors'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'corsheaders': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
