@@ -13,13 +13,16 @@ from .serializers import EmailCampaignSerializer, CampaignEmailAttachmentSeriali
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.middleware.csrf import get_token
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
 from django.http import JsonResponse
+from django.contrib.auth import get_user_model
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +92,36 @@ def get_csrf_token(request):
         logger.error(f'Error generating CSRF token: {str(e)}', exc_info=True)
         return JsonResponse(
             {'status': 'error', 'message': 'Failed to generate CSRF token'},
+            status=500
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@require_http_methods(["GET"])
+def get_current_user(request):
+    """
+    View to get current authenticated user details.
+    Requires authentication.
+    """
+    try:
+        user = request.user
+        user_data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+        }
+        
+        return JsonResponse({
+            'status': 'success',
+            'user': user_data
+        })
+        
+    except Exception as e:
+        logger.error(f'Error getting user data: {str(e)}', exc_info=True)
+        return JsonResponse(
+            {'status': 'error', 'message': 'Failed to get user data'},
             status=500
         )
 

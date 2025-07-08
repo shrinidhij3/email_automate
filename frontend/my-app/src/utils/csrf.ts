@@ -8,9 +8,10 @@ import { API_BASE_URL } from '../config/api';
  */
 export async function fetchCSRFToken(): Promise<string> {
   try {
-    console.log('[CSRF] Fetching CSRF token from:', `${API_BASE_URL}/api/csrf-token/`);
+    const csrfUrl = `${API_BASE_URL}/api/auth/csrf-token/`;
+    console.log('[CSRF] Fetching CSRF token from:', csrfUrl);
     
-    const response = await axios.get(`${API_BASE_URL}/api/csrf-token/`, {
+    const response = await axios.get(csrfUrl, {
       withCredentials: true,  // Required for cross-domain cookies
       headers: {
         'Accept': 'application/json',

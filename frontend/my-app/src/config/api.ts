@@ -1,32 +1,34 @@
 // API Configuration for local development with production backend
-const PRODUCTION_BACKEND = 'https://email-automate-ob1a.onrender.com';
+const PRODUCTION_BACKEND = "https://email-automate-ob1a.onrender.com";
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || PRODUCTION_BACKEND;
 
 // Remove trailing slashes and ensure we don't have duplicate /api/
-export const API_BASE_URL = BASE_URL.replace(/(\/)+$/, '');
+export const API_BASE_URL = BASE_URL.replace(/(\/)+$/, "");
 
 // For backward compatibility
 export const AUTH_BASE_URL = `${API_BASE_URL}/api/auth/`;
 
 export const ENDPOINTS = {
   AUTH: {
-    LOGIN: '/api/auth/login/',
-    REGISTER: '/api/auth/register/',
-    LOGOUT: '/api/auth/logout/',
-    CSRF: '/api/csrf-token/',
-    SESSION: '/api/auth/session/',
-    USER: '/api/auth/user/'
+    LOGIN: "/api/auth/login/",
+    REGISTER: "/api/auth/register/",
+    LOGOUT: "/api/auth/logout/",
+    CSRF: "/api/auth/csrf-token/", // Updated to match backend
+    SESSION: "/api/auth/session/",
+    USER: "/api/auth/user/",
   },
   UNREAD_EMAILS: {
-    SUBMISSIONS: '/api/unread-emails/submissions/',
-    UPLOAD_ATTACHMENT: (id: string) => `/api/unread-emails/submissions/${id}/upload_attachment/`,
+    SUBMISSIONS: "/api/unread-emails/submissions/",
+    UPLOAD_ATTACHMENT: (id: string) =>
+      `/api/unread-emails/submissions/${id}/upload_attachment/`,
   },
   CAMPAIGNS: {
-    BASE: '/api/campaigns/',
-    UPLOAD_ATTACHMENTS: (id: string) => `/api/campaigns/${id}/upload_attachments/`,
+    BASE: "/api/campaigns/",
+    UPLOAD_ATTACHMENTS: (id: string) =>
+      `/api/campaigns/${id}/upload_attachments/`,
   },
   EMAIL_ENTRIES: "/api/email-entries/",
-  BULK_EMAIL_ENTRIES: "/api/email-entries/bulk/"
+  BULK_EMAIL_ENTRIES: "/api/email-entries/bulk/",
 };
 
 // Helper function to get full API URL
@@ -37,8 +39,8 @@ export const getApiUrl = (endpoint: string) => {
   }
 
   // Remove leading slashes from endpoint
-  const cleanEndpoint = endpoint.replace(/^\/+/, '');
-  
+  const cleanEndpoint = endpoint.replace(/^\/+/, "");
+
   // Combine base URL with endpoint, ensuring no duplicate /api/
   return `${API_BASE_URL}/${cleanEndpoint}`;
 };

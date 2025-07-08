@@ -37,74 +37,96 @@ def log_response(response, prefix=""):
             logger.debug(f"{prefix}Response Content: (binary data)")
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["POST", "OPTIONS"])
 def register_view(request):
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        response = JsonResponse({}, status=200)
+    else:
+        try:
+            data = json.loads(request.body)
+            username = data.get('username')
+            email = data.get('email')
+            password = data.get('password')
+            password2 = data.get('password2', '')
+            first_name = data.get('first_name', '')
+            last_name = data.get('last_name', '')
+            
+            # Validate required fields
+            if not all([username, email, password, password2]):
+                response = JsonResponse(
+                    {'status': 'error', 'message': 'Please provide all required fields'}, 
+                    status=400
+                )
+            # Check if passwords match
+            elif password != password2:
+                response = JsonResponse(
+                    {'status': 'error', 'message': 'Passwords do not match'}, 
+                    status=400
+                )
+            # Check if username already exists
+            elif User.objects.filter(username=username).exists():
+                response = JsonResponse(
+                    {'status': 'error', 'message': 'Username already exists'}, 
+                    status=400
+                )
+            # Check if email already exists
+            elif User.objects.filter(email=email).exists():
+                response = JsonResponse(
+                    {'status': 'error', 'message': 'Email already registered'}, 
+                    status=400
+                )
+            else:
+                # Create user with additional fields
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                
+                # Log the user in
+                login(request, user)
+                response = JsonResponse({
+                    'status': 'success',
+                    'message': 'Registration successful',
+                    'user': {
+                        'id': user.id,
+                        'username': user.username,
+                        'email': user.email,
+                        'first_name': user.first_name or '',
+                        'last_name': user.last_name or ''
+                    }
+                })
+                response.status_code = 201  # Created
+                
+        except json.JSONDecodeError:
+            response = JsonResponse(
+                {'status': 'error', 'message': 'Invalid JSON data'}, 
+                status=400
+            )
+        except Exception as e:
+            logger.error(f"[Register] Error during registration: {str(e)}")
+            response = JsonResponse(
+                {'status': 'error', 'message': 'An error occurred during registration'}, 
+                status=500
+            )
+    
+    # Add CORS headers
+    origin = request.headers.get('Origin', '')
+    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+    
+    if origin in allowed_origins or settings.DEBUG:
+        response['Access-Control-Allow-Origin'] = origin
+        response['Access-Control-Allow-Credentials'] = 'true'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
+        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
+        response['Vary'] = 'Origin, Cookie'
+    
     try:
-        data = json.loads(request.body)
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
-        password2 = data.get('password2', '')
-        first_name = data.get('first_name', '')
-        last_name = data.get('last_name', '')
-        
-        # Validate required fields
-        if not all([username, email, password, password2]):
-            return JsonResponse(
-                {'error': 'Please provide all required fields'}, 
-                status=400
-            )
-            
-        # Check if passwords match
-        if password != password2:
-            return JsonResponse(
-                {'error': 'Passwords do not match'}, 
-                status=400
-            )
-            
-        # Check if username already exists
-        if User.objects.filter(username=username).exists():
-            return JsonResponse(
-                {'error': 'Username already exists'}, 
-                status=400
-            )
-            
-        # Check if email already exists
-        if User.objects.filter(email=email).exists():
-            return JsonResponse(
-                {'error': 'Email already registered'}, 
-                status=400
-            )
-            
-        # Create user with additional fields
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            first_name=first_name,
-            last_name=last_name
-        )
-        
-        # Log the user in
-        login(request, user)
-        return JsonResponse({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name
-        })
-        
-    except json.JSONDecodeError:
-        return JsonResponse(
-            {'error': 'Invalid JSON data'}, 
-            status=400
-        )
-    except IntegrityError as e:
-        return JsonResponse(
-            {'error': 'Database error: ' + str(e)}, 
-            status=400
-        )
+        return response
     except Exception as e:
         return JsonResponse(
             {'error': str(e)}, 
@@ -182,12 +204,32 @@ def login_view(request):
             login(request, user)
             logger.info(f"[Login] User authenticated: {user.username}")
             
-            # Create response
-            response = JsonResponse({
-                'id': user.id,
-                'username': user.username,
-                'email': user.email
-            })
+            # Create response with complete user data
+            response_data = {
+                'status': 'success',
+                'message': 'Login successful',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'first_name': user.first_name or '',
+                    'last_name': user.last_name or ''
+                }
+            }
+            
+            response = JsonResponse(response_data)
+            
+            # Add CORS headers
+            origin = request.headers.get('Origin', '')
+            allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+            
+            if origin in allowed_origins or settings.DEBUG:
+                response['Access-Control-Allow-Origin'] = origin
+                response['Access-Control-Allow-Credentials'] = 'true'
+                response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+                response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
+                response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
+                response['Vary'] = 'Origin, Cookie'
             
             # Log response
             log_response(response, "[Login Success] ")
@@ -207,55 +249,123 @@ def login_view(request):
         )
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["POST", "OPTIONS"])
 def logout_view(request):
-    logout(request)
-    return JsonResponse({'message': 'Successfully logged out'})
-
-@csrf_exempt
-def csrf(request):
-    """Get CSRF token with detailed logging"""
-    log_request(request, "[CSRF] ")
+    logger.info("[Logout] Processing logout request")
     
-    # Get the CSRF token
-    csrf_token = get_token(request)
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        response = JsonResponse({}, status=200)
+    else:
+        logout(request)
+        response = JsonResponse({'status': 'success', 'message': 'Successfully logged out'})
     
-    # Prepare the response
-    response = JsonResponse({'csrfToken': csrf_token})
+    # Add CORS headers
+    origin = request.headers.get('Origin', '')
+    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
     
-    # Log the response before sending
-    log_response(response, "[CSRF] ")
-    
-    # Log the cookies being set
-    logger.debug(f"[CSRF] Setting CSRF cookie: {response.cookies}")
-    logger.debug(f"[CSRF] Session ID in request: {request.session.session_key}")
+    if origin in allowed_origins or settings.DEBUG:
+        response['Access-Control-Allow-Origin'] = origin
+        response['Access-Control-Allow-Credentials'] = 'true'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
+        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
+        response['Vary'] = 'Origin, Cookie'
     
     return response
 
 @csrf_exempt
+@require_http_methods(["GET", "OPTIONS"])
+def csrf(request):
+    """Get CSRF token with detailed logging"""
+    log_request(request, "[CSRF] ")
+    
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        response = JsonResponse({}, status=200)
+    else:
+        # Get the CSRF token
+        csrf_token = get_token(request)
+        
+        # Prepare the response with consistent format
+        response_data = {
+            'status': 'success',
+            'message': 'CSRF token generated successfully',
+            'csrfToken': csrf_token
+        }
+        
+        response = JsonResponse(response_data)
+        
+        # Set the CSRF cookie with secure settings
+        is_secure = request.is_secure()
+        response.set_cookie(
+            'csrftoken',
+            csrf_token,
+            max_age=60 * 60 * 24 * 7,  # 1 week
+            secure=is_secure,
+            httponly=False,  # Must be accessible from JavaScript
+            samesite='None' if is_secure else 'Lax',
+            domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and not settings.DEBUG else None
+        )
+        
+        # Log the response before sending
+        log_response(response, "[CSRF] ")
+        logger.debug(f"[CSRF] Setting CSRF cookie. Secure: {is_secure}")
+        logger.debug(f"[CSRF] Session ID in request: {request.session.session_key}")
+    
+    # Add CORS headers
+    origin = request.headers.get('Origin', '')
+    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+    
+    if origin in allowed_origins or settings.DEBUG:
+        response['Access-Control-Allow-Origin'] = origin
+        response['Access-Control-Allow-Credentials'] = 'true'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
+        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
+        response['Vary'] = 'Origin, Cookie'
+    
+    return response
+
+@csrf_exempt
+@require_http_methods(["GET", "OPTIONS"])
 def session_view(request):
     """Check session status with detailed logging"""
     log_request(request, "[SESSION] ")
     
-    if not request.user.is_authenticated:
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        response = JsonResponse({}, status=200)
+    elif not request.user.is_authenticated:
         logger.debug("[SESSION] User not authenticated")
         response = JsonResponse({'isAuthenticated': False})
     else:
         logger.debug(f"[SESSION] User authenticated: {request.user.username}")
         response = JsonResponse({
             'isAuthenticated': True,
-            'id': request.user.id,
-            'username': request.user.username,
-            'email': request.user.email
+            'user': {
+                'id': request.user.id,
+                'username': request.user.username,
+                'email': request.user.email,
+                'first_name': request.user.first_name or '',
+                'last_name': request.user.last_name or ''
+            }
         })
+    
+    # Add CORS headers
+    origin = request.headers.get('Origin', '')
+    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+    
+    if origin in allowed_origins or settings.DEBUG:
+        response['Access-Control-Allow-Origin'] = origin
+        response['Access-Control-Allow-Credentials'] = 'true'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
+        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
+        response['Vary'] = 'Origin, Cookie'
     
     # Log the response
     log_response(response, "[SESSION] ")
-    
-    # Add CORS headers
-    response['Access-Control-Allow-Credentials'] = 'true'
-    response['Access-Control-Allow-Origin'] = request.headers.get('Origin', '')
-    response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With'
+    return response
     
     return response

@@ -26,12 +26,13 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
-from .views import DebugURLsView, TestAdminView
-from unread_emails.views import AdminSubmissionListView
+# Local imports
 from . import views
-from .views import landing_page
-# Import get_csrf_token from the correct module
-from api.views import get_csrf_token
+from .views import DebugURLsView, TestAdminView, landing_page
+from unread_emails.views import AdminSubmissionListView
+
+# API imports
+from api.views import get_csrf_token, get_current_user
 
 # Schema view for API documentation
 schema_view = get_schema_view(
@@ -64,8 +65,13 @@ urlpatterns = [
     # Redirect root to API documentation
     path('', RedirectView.as_view(url='/api/docs/', permanent=False), name='home'),
     
-    # Authentication endpoints
-    path('api/auth/', include('auth_app.urls')),  # Authentication endpoints
+    # Authentication endpoints - all under /api/auth/
+    path('api/auth/', include([
+        # Include auth_app URLs under /api/auth/
+        path('', include('auth_app.urls')),
+        # User endpoint
+        path('user/', get_current_user, name='get_current_user'),
+    ])),
     
     # API endpoints
     path('api/accounts/', include('accounts.urls')),  # User accounts API
@@ -78,8 +84,11 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     
-    # CSRF token endpoint - must be after other API routes
-    path('api/csrf-token/', get_csrf_token, name='get_csrf_token'),
+    # CSRF token endpoint - under /api/auth/ for consistency
+    path('api/auth/csrf-token/', get_csrf_token, name='get_csrf_token'),
+    
+    # Backward compatibility for old CSRF URL
+    path('api/csrf-token/', get_csrf_token, name='legacy_get_csrf_token'),
     
     # Include API app URLs (keep this last to avoid overriding other routes)
     path('api/', include('api.urls')),

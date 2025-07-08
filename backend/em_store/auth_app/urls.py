@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from django.views.decorators.csrf import csrf_exempt
 
 app_name = 'auth_app'
 
@@ -9,5 +10,5 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('session/', views.session_view, name='session'),
-    path('csrf/', views.csrf, name='csrf-token'),
+    # CSRF token endpoint moved to main urls.py for consistency
 ]

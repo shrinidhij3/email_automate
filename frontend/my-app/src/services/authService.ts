@@ -27,10 +27,21 @@ const api = axios.create({
     'X-Requested-With': 'XMLHttpRequest',
   },
   xsrfCookieName: 'csrftoken',
-  xsrfHeaderName: 'X-CSRFToken',
+  // Django expects the CSRF token in the HTTP_X_CSRFTOKEN header
+  xsrfHeaderName: 'X-CSRFToken',  // This will be transformed to HTTP_X_CSRFTOKEN by Django
   // Important for cross-domain requests
   withXSRFToken: true,
   timeout: 10000,  // 10 second timeout
+});
+
+// Add a request interceptor to transform the header name if needed
+api.interceptors.request.use(config => {
+  // If there's a CSRF token in the headers, make sure it's using the correct header name
+  if (config.headers && config.headers['X-CSRFToken']) {
+    config.headers['HTTP_X_CSRFTOKEN'] = config.headers['X-CSRFToken'];
+    delete config.headers['X-CSRFToken'];
+  }
+  return config;
 });
 
 // Add request interceptor for logging
@@ -237,7 +248,7 @@ const authService = {
       const csrfToken = await fetchCSRFToken();
       
       // Then make the login request with the token
-      const response = await api.post<AuthResponse>(
+      const response = await api.post(
         ENDPOINTS.AUTH.LOGIN,
         { username, password },
         {
@@ -245,15 +256,27 @@ const authService = {
             "X-CSRFToken": csrfToken,
           },
           withCredentials: true,
+          validateStatus: (status) => status < 500,
         }
       );
 
-      // Verify we have a session cookie
-      const hasSession = document.cookie.includes('sessionid');
-      console.log('Login successful. Session cookie present:', hasSession);
-      console.log('CSRF Token after login:', csrfToken);
-      
-      return response.data;
+      console.log('Login response:', {
+        status: response.status,
+        data: response.data,
+        headers: response.headers
+      });
+
+      if (response.status === 200) {
+        // Verify we have a session cookie
+        const hasSession = document.cookie.includes('sessionid');
+        console.log('Login successful. Session cookie present:', hasSession);
+        
+        // Return the user data from the response
+        return response.data.user || response.data;
+      } else {
+        const errorMessage = response.data?.message || 'Login failed';
+        throw new Error(errorMessage);
+      }
     } catch (error: any) {
       console.error("Login error:", {
         message: error.message,
@@ -275,7 +298,7 @@ const authService = {
     try {
       const csrfToken = await fetchCSRFToken();
 
-      await api.post(
+      const response = await api.post(
         ENDPOINTS.AUTH.LOGOUT,
         {},
         {
@@ -283,20 +306,52 @@ const authService = {
             "X-CSRFToken": csrfToken,
           },
           withCredentials: true,
+          validateStatus: (status) => status < 500,
         }
       );
+
+      console.log('Logout response:', {
+        status: response.status,
+        data: response.data,
+        headers: response.headers
+      });
+
+      if (response.status !== 200) {
+        const errorMessage = response.data?.message || 'Logout failed';
+        throw new Error(errorMessage);
+      }
+      
+      // Clear any stored user data
+      localStorage.removeItem('user');
+      
     } catch (error) {
       console.error("Logout error:", error);
+      // Even if there's an error, we want to clear the user's session
+      localStorage.removeItem('user');
       throw error;
     }
   },
 
   async getCurrentUser(): Promise<User | null> {
     try {
-      const response = await api.get<User>(ENDPOINTS.AUTH.USER, {
+      const response = await api.get(ENDPOINTS.AUTH.USER, {
         withCredentials: true,
+        validateStatus: (status) => status < 500,
       });
-      return response.data;
+
+      console.log('Current user response:', {
+        status: response.status,
+        data: response.data,
+        headers: response.headers
+      });
+
+      if (response.status === 200) {
+        // Return the user data from the response
+        return response.data.user || response.data;
+      }
+      
+      // If we get here, the user is not authenticated
+      return null;
     } catch (error) {
       console.error("Error fetching current user:", error);
       return null;
@@ -305,12 +360,10 @@ const authService = {
 
   async isAuthenticated(): Promise<boolean> {
     try {
-      const response = await api.get<{ isAuthenticated: boolean }>(
-        ENDPOINTS.AUTH.SESSION
-      );
-      return response.data.isAuthenticated;
+      const user = await this.getCurrentUser();
+      return user !== null;
     } catch (error) {
-      console.error("Error checking authentication status:", error);
+      console.error("Authentication check failed:", error);
       return false;
     }
   },
