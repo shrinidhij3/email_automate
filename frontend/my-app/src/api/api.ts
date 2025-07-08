@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../config/api';
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true,  // Important: This enables sending cookies with cross-origin requests
+  withCredentials: true,  // Required for cookies and authentication
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -12,16 +12,24 @@ const api = axios.create({
   },
   xsrfCookieName: 'csrftoken',
   xsrfHeaderName: 'X-CSRFToken',
+  // Ensure credentials are sent with all requests
+  withXSRFToken: true,
 });
 
 // Request interceptor to add CSRF token to requests
 api.interceptors.request.use(
   async (config) => {
-    // Only add CSRF token for non-GET requests
-    if (config.method?.toUpperCase() !== 'GET') {
-      const csrfToken = await getCSRFToken();
-      if (csrfToken) {
-        config.headers['X-CSRFToken'] = csrfToken;
+    // Always get CSRF token for all requests that can modify state
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(config.method?.toUpperCase() || '')) {
+      try {
+        const csrfToken = await getCSRFToken();
+        if (csrfToken) {
+          config.headers['X-CSRFToken'] = csrfToken;
+        }
+      } catch (error) {
+        console.warn('Failed to get CSRF token:', error);
+        // Don't block the request if CSRF token fetch fails
+        // The server will validate the token and return an error if needed
       }
     }
     return config;
@@ -61,33 +69,45 @@ api.interceptors.response.use(
 
 // Function to get CSRF token
 let csrfToken: string | null = null;
+let csrfPromise: Promise<string> | null = null;
 
 export async function getCSRFToken(): Promise<string> {
   // Return cached token if available
   if (csrfToken) return csrfToken;
   
-  try {
-    const response = await axios.get<{ csrfToken: string }>(`${API_BASE_URL}/api/csrf-token/`, {
-      withCredentials: true,
-      headers: {
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      },
-    });
+  // If a request is already in progress, return that promise
+  if (csrfPromise) return csrfPromise;
 
-    if (response.data?.csrfToken) {
-      const token = response.data.csrfToken;
-      csrfToken = token;
-      return token;
+  csrfPromise = (async () => {
+    try {
+      const response = await axios.get<{ csrfToken: string }>(
+        `${API_BASE_URL}/api/auth/csrf-token/`,
+        {
+          withCredentials: true,
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        }
+      );
+
+      if (response.data?.csrfToken) {
+        csrfToken = response.data.csrfToken;
+        return csrfToken;
+      }
+      
+      throw new Error('No CSRF token received in response');
+    } catch (error) {
+      console.error('Error fetching CSRF token:', error);
+      // Clear the promise so we can retry
+      csrfPromise = null;
+      throw new Error('Failed to retrieve CSRF token');
     }
-    
-    throw new Error('No CSRF token received');
-  } catch (error) {
-    console.error('Error fetching CSRF token:', error);
-    throw error;
-  }
+  })();
+
+  return csrfPromise;
 }
 
 // Export api instance with proper typing

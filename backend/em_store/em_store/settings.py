@@ -116,6 +116,7 @@ CORS_ALLOWED_ORIGINS = [
     'https://email-automate-eight.vercel.app',
 ]
 
+# Allow all methods needed by the frontend
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -125,6 +126,7 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
+# Allow all necessary headers
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -133,21 +135,30 @@ CORS_ALLOW_HEADERS = [
     'dnt',
     'origin',
     'user-agent',
-    'x-csrftoken',
+    'x-csrftoken',  # Standard CSRF token header
     'x-requested-with',
     'cache-control',
     'pragma',
+    'x-csrftoken',  # Django's default CSRF header
+    'x-xsrf-token',  # Some libraries use this
 ]
 
+# Expose headers that the frontend needs to access
 CORS_EXPOSE_HEADERS = [
     'Content-Type',
     'X-CSRFToken',
     'Content-Length',
     'X-Requested-With',
     'Set-Cookie',
+    'Authorization',
+    'X-CSRF-Token',
 ]
 
+# Cache preflight requests for 1 day
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+
+# Allow cookies to be included in cross-site HTTP requests
+CORS_ALLOW_CREDENTIALS = True
 
 # CSRF configuration
 CSRF_TRUSTED_ORIGINS = [
@@ -158,27 +169,34 @@ CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-eight.vercel.app',
 ]
 
+# CSRF settings
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
-CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
-CSRF_COOKIE_SECURE = True  # True for production
-CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-site cookies
-CSRF_COOKIE_DOMAIN = '.onrender.com'  # Allow subdomains
+CSRF_HEADER_NAME = 'X-CSRFToken'  # Standard header name
+CSRF_COOKIE_HTTPONLY = False  # Required for JavaScript access
+CSRF_COOKIE_SECURE = not DEBUG  # True in production, False in development
+CSRF_COOKIE_SAMESITE = 'Lax'  # Changed to Lax for better compatibility
 CSRF_COOKIE_PATH = '/'
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
 
-# Session configuration for development
+# Remove domain specification to allow cross-domain cookies
+# This lets the browser handle the domain based on the request
+CSRF_COOKIE_DOMAIN = None
+
+# Session configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = True  # True for production
-SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-site cookies
-SESSION_COOKIE_DOMAIN = '.onrender.com'  # Allow subdomains
+SESSION_COOKIE_SECURE = not DEBUG  # True in production, False in development
+SESSION_COOKIE_SAMESITE = 'Lax'  # Changed to Lax for better compatibility
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'
+
+# Remove domain specification to allow cross-domain cookies
+# This lets the browser handle the domain based on the request
+SESSION_COOKIE_DOMAIN = None
 
 # REST Framework configuration
 REST_FRAMEWORK = {

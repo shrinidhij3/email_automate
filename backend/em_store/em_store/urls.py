@@ -79,11 +79,8 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     
-    # CSRF token endpoint - under /api/auth/ for consistency
+    # Standardized CSRF token endpoint
     path('api/auth/csrf-token/', get_csrf_token, name='get_csrf_token'),
-    
-    # Backward compatibility for old CSRF URL
-    path('api/csrf-token/', get_csrf_token, name='legacy_get_csrf_token'),
     
     # Include API app URLs (keep this last to avoid overriding other routes)
     path('api/', include('api.urls')),
