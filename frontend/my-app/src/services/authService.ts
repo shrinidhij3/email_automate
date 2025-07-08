@@ -266,10 +266,11 @@ const authService: AuthService = {
   async logout(): Promise<void> {
     try {
       console.log("[Auth] Starting logout process");
-
-      // Get CSRF token for logout request
       const csrfToken = await getCSRFToken();
-
+      
+      // Clear all caches before making the logout request
+      this.clearCache();
+      
       // Make logout request to server
       await api.post(
         ENDPOINTS.AUTH.LOGOUT,
@@ -283,22 +284,30 @@ const authService: AuthService = {
           withCredentials: true,
         }
       );
-
+      
       console.log("[Auth] Logout request successful");
     } catch (error) {
       console.error("Logout API error:", error);
-      // Continue with cleanup even if server request fails
+      // Even if the server request fails, we still want to clear local state
     } finally {
-      // Always clear all local state regardless of server response
-      this.clearCache();
-
-      // Clear localStorage
+      // Clear all local storage
       if (typeof window !== "undefined") {
-        localStorage.removeItem("authState");
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
+        localStorage.clear(); // Clear all localStorage
+        sessionStorage.clear();
       }
-
+      
+      // Clear all caches again to be safe
+      this.clearCache();
+      
+      // Clear any service worker caches if they exist
+      if ('caches' in window) {
+        caches.keys().then(cacheNames => {
+          cacheNames.forEach(cacheName => {
+            caches.delete(cacheName);
+          });
+        });
+      }
+      
       console.log("[Auth] Logout cleanup completed");
     }
   },
@@ -361,9 +370,10 @@ const authService: AuthService = {
     }
   },
 
-  async isAuthenticated(): Promise<boolean> {
+  async isAuthenticated(forceRefresh = true): Promise<boolean> {
     try {
-      const user = await this.getCurrentUser();
+      // Force a fresh check by default to ensure we don't use cached data
+      const user = await this.getCurrentUser(forceRefresh);
       return !!user;
     } catch (error) {
       console.error("Authentication check failed:", error);

@@ -260,8 +260,26 @@ def logout_view(request):
     if request.method == 'OPTIONS':
         response = JsonResponse({}, status=200)
     else:
+        # Clear the session and log the user out
+        if hasattr(request, 'session') and hasattr(request, 'user'):
+            # Flush the session completely
+            request.session.flush()
+            logger.info(f"[Logout] Session flushed for user: {request.user}")
+        
+        # Call Django's logout to clean up
         logout(request)
+        
+        # Create response with success message
         response = JsonResponse({'status': 'success', 'message': 'Successfully logged out'})
+        
+        # Clear all session cookies
+        response.delete_cookie('sessionid')
+        response.delete_cookie('csrftoken')
+        
+        # Add cache control headers to prevent caching
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
     
     # Add CORS headers
     origin = request.headers.get('Origin', '')
@@ -271,7 +289,7 @@ def logout_view(request):
         response['Access-Control-Allow-Origin'] = origin
         response['Access-Control-Allow-Credentials'] = 'true'
         response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma, Expires'
         response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
         response['Vary'] = 'Origin, Cookie'
     
