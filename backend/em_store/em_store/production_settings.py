@@ -100,12 +100,12 @@ CSRF_COOKIE_DOMAIN = COOKIE_DOMAIN
 SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN
 
 # CORS settings for production
-CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
     'https://email-automate-eight.vercel.app',
 ]
+CORS_ORIGIN_WHITELIST = CORS_ALLOWED_ORIGINS
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -125,27 +125,28 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
-# CSRF settings
+# CSRF settings - Critical for CORS
 CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-ob1a.onrender.com',
     'https://email-automate-eight.vercel.app',
 ]
-CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+CSRF_COOKIE_HTTPONLY = False  # Required for JavaScript to read CSRF token
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_SAMESITE = 'None'  # Allow cross-site cookies
-
-# Cookie settings for cross-origin requests
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
-SESSION_COOKIE_SAMESITE = 'None'  # Allow cross-site cookies
-CSRF_COOKIE_SAMESITE = 'None'     # Allow cross-site cookies
-CSRF_USE_SESSIONS = False
+CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-site requests
+CSRF_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Specific to your domain
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_COOKIE_PATH = '/'
-SESSION_COOKIE_PATH = '/'
+
+# Session settings for CORS
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-site requests
+SESSION_COOKIE_DOMAIN = 'email-automate-ob1a.onrender.com'  # Specific to your domain
+
+# CORS credentials and cookie settings
 CORS_ALLOW_CREDENTIALS = True
 
 # Set cookie domain in production
