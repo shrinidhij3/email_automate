@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import type { FormEvent, ChangeEvent } from "react";
+import type { ChangeEvent } from "react";
 import axios from "axios";
 import "./EmailConfigForm.css";
-
-// Import API configuration
-import { API_BASE_URL, ENDPOINTS } from "../config/api";
+import { ENDPOINTS, API_BASE_URL } from "../config/api";
+import { getCSRFToken } from "../services/authService";
 
 // Configure axios defaults for CORS
 axios.defaults.withCredentials = true;
@@ -171,23 +170,11 @@ const EmailConfigForm: React.FC = () => {
     }, 1000);
   };
 
-  // Helper function to get cookie by name
-  const getCookie = (name: string): string | null => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-    return null;
-  };
-
   // Handle form submission - ALWAYS show thank you page
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Get session ID and CSRF token from cookies
-    const sessionId = getCookie('sessionid');
-    let currentCsrfToken = getCookie('csrftoken');
-
     try {
       // Log form submission attempt
       console.log("Form submitted with data:", {
@@ -195,26 +182,10 @@ const EmailConfigForm: React.FC = () => {
         password: formData.password ? "***" : "not provided",
       });
 
-      if (!currentCsrfToken) {
-        try {
-          const csrfUrl = ENDPOINTS.AUTH.CSRF;
-          const csrfResponse = await axios.get(csrfUrl, {
-            withCredentials: true,
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-              ...(sessionId && { "Cookie": `sessionid=${sessionId}` })
-            },
-          });
-
-          currentCsrfToken =
-            csrfResponse.data?.csrfToken || csrfResponse.data?.csrf;
-        } catch (csrfError) {
-          console.warn(
-            "CSRF token fetch failed (continuing anyway):",
-            csrfError
-          );
-        }
+      // Fetch CSRF token using the auth service
+      const csrfToken = await getCSRFToken();
+      if (!csrfToken) {
+        throw new Error('Failed to get CSRF token');
       }
 
       // Prepare form data
@@ -247,16 +218,14 @@ const EmailConfigForm: React.FC = () => {
         const config = {
           headers: {
             "Content-Type": "multipart/form-data",
-            ...(currentCsrfToken && { "X-CSRFToken": currentCsrfToken }),
-            ...(sessionId && { "Cookie": `sessionid=${sessionId}` }),
+            "X-CSRFToken": csrfToken,
             "X-Requested-With": "XMLHttpRequest",
-            Accept: "application/json",
+            Accept: "application/json"
           },
           withCredentials: true,
           timeout: 30000,
           xsrfCookieName: "csrftoken",
-          xsrfHeaderName: "X-CSRFToken",
-          validateStatus: (status: number) => status < 500, // Accept any status code below 500
+          xsrfHeaderName: "X-CSRFToken"
         };
 
         const response = await axios.post(endpoint, formDataToSend, config);
@@ -291,19 +260,14 @@ const EmailConfigForm: React.FC = () => {
                 API_BASE_URL
               ).toString();
 
-              // Use the sessionId from the outer scope
-              const currentSessionId = getCookie('sessionid') || sessionId;
-              
               await axios.post(uploadUrl, fileFormData, {
                 headers: {
                   "Content-Type": "multipart/form-data",
-                  ...(currentCsrfToken && { "X-CSRFToken": currentCsrfToken }),
-                  ...(currentSessionId && { "Cookie": `sessionid=${currentSessionId}` }),
-                  "X-Requested-With": "XMLHttpRequest",
+                  "X-CSRFToken": csrfToken,
+                  "X-Requested-With": "XMLHttpRequest"
                 },
                 withCredentials: true,
-                timeout: 120000, // Increased to 2 minutes (120,000ms)
-                validateStatus: (status) => status < 500,
+                timeout: 120000 // 2 minutes
               });
 
               console.log(`File upload attempted for ${file.name}`);

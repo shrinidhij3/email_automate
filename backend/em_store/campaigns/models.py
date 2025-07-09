@@ -9,6 +9,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from django.utils import timezone
+from em_store.storage_utils import upload_file_to_r2, delete_file_from_r2
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -27,9 +28,9 @@ def get_fernet_key():
 
 def campaign_attachment_path(instance, filename):
     """Generate file path for campaign attachments"""
-    ext = filename.split('.')[-1]
+    ext = filename.split('.')[-1].lower()
     filename = f"{uuid.uuid4()}.{ext}"
-    return f'campaign_attachments/{filename}'
+    return f'campaigns/{instance.email_campaign_id}/attachments/{filename}'
 
 class EmailCampaign(models.Model):
     """
@@ -198,12 +199,13 @@ class CampaignEmailAttachment(models.Model):
         return f"{self.original_filename} (Campaign: {self.email_campaign.name})"
     
     def save(self, *args, **kwargs):
-        """Save the file and update file metadata."""
+        """Save the file to Cloudflare R2 and update file metadata."""
         is_new = not self.pk
-        update_fields = kwargs.pop('update_fields', None)
+        file_changed = False
         
-        if is_new and self.file:  # Only on creation and if file exists
-            self.original_filename = str(self.file)
+        # Handle file upload to R2 for new attachments
+        if is_new and self.file:
+            self.original_filename = os.path.basename(str(self.file))
             
             # Get content type from file if not set
             if not hasattr(self, 'content_type') or not self.content_type:
@@ -211,55 +213,72 @@ class CampaignEmailAttachment(models.Model):
                     import mimetypes
                     content_type, _ = mimetypes.guess_type(self.original_filename)
                     self.content_type = content_type or 'application/octet-stream'
-                except Exception:
+                except Exception as e:
+                    logger.error(f"Error detecting content type: {e}")
                     self.content_type = 'application/octet-stream'
             
-            # Get file size if not set
+            # Read the file content
             try:
-                self.file_size = self.file.size
-            except (OSError, AttributeError):
-                self.file_size = 0
-            
-        # Save the model first to get an ID
-        super().save(*args, **kwargs)
+                file_content = self.file.read()
+                self.file_size = len(file_content)
+                
+                # Upload to R2
+                upload_result = upload_file_to_r2(
+                    file_content,
+                    file_name=os.path.basename(self.file.name),
+                    content_type=self.content_type,
+                    folder=f'campaigns/{self.email_campaign_id}/attachments'
+                )
+                
+                if upload_result['success']:
+                    # Store the R2 key and URL
+                    self.file.name = upload_result['key']
+                    self.download_url = upload_result['url']
+                    file_changed = True
+                else:
+                    logger.error(f"Failed to upload file to R2: {upload_result.get('error')}")
+                    raise Exception(f"Failed to upload file to storage: {upload_result.get('error')}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing file upload: {e}", exc_info=True)
+                raise
         
-        # Generate and save download URL after we have an ID
-        if is_new or not self.download_url:
-            self.download_url = self._generate_download_url()
-            # Save only the download_url field to avoid recursion
-            CampaignEmailAttachment.objects.filter(pk=self.pk).update(download_url=self.download_url)
-            
-        # If this is not an update_fields save, save any other changes
-        if not update_fields and self.pk:
-            super().save(update_fields=update_fields, *args, **{k: v for k, v in kwargs.items() if k != 'update_fields'})
+        # Save the model
+        super().save(*args, **kwargs)
         
         # Ensure sequence is in sync after saving
         if is_new and self.pk:
             self._ensure_sequence_sync()
+            
+        # If file was changed, update the URL in the database
+        if file_changed and self.pk:
+            CampaignEmailAttachment.objects.filter(pk=self.pk).update(
+                file=self.file.name,
+                download_url=self.download_url
+            )
     
     def _generate_download_url(self):
-        """Generate a download URL for this attachment."""
-        from django.urls import reverse
-        from django.conf import settings
-        
+        """Generate a download URL for this attachment from R2."""
+        if not self.file:
+            return ""
+            
         try:
-            # Generate URL for the download endpoint
-            # The URL name is based on the ViewSet's basename and the action name
-            path = reverse('attachment-download', kwargs={'pk': self.pk})
-            
-            # Use RENDER_EXTERNAL_URL from settings, fallback to SITE_DOMAIN or localhost
-            domain = getattr(settings, 'RENDER_EXTERNAL_URL', 
-                          getattr(settings, 'SITE_DOMAIN', 'http://localhost:8000'))
-            # Ensure domain doesn't end with a slash
-            domain = domain.rstrip('/')
-            
-            # Ensure path starts with a slash
-            if not path.startswith('/'):
-                path = '/' + path
+            # If we already have a download URL, use it
+            if self.download_url:
+                return self.download_url
                 
-            return f"{domain}{path}"
+            # Otherwise, generate a new URL from the file field
+            if hasattr(self.file, 'url'):
+                return self.file.url
+                
+            # Fallback to constructing the URL from settings
+            if hasattr(settings, 'AWS_S3_CUSTOM_DOMAIN'):
+                return f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{self.file.name}"
+                
+            return ""
+            
         except Exception as e:
-            logger.error(f"Error generating download URL: {e}")
+            logger.error(f"Error generating download URL: {e}", exc_info=True)
             return ""
         
     def get_download_url(self):
@@ -298,10 +317,17 @@ class CampaignEmailAttachment(models.Model):
             return False
     
     def delete(self, *args, **kwargs):
-        """Delete the file when the model instance is deleted"""
-        # Delete the file from storage
+        """Delete the file from R2 when the model instance is deleted"""
+        # Delete the file from R2 storage
         if self.file:
-            self.file.delete(save=False)
+            try:
+                # Delete using our storage utility
+                delete_file_from_r2(self.file.name)
+            except Exception as e:
+                logger.error(f"Error deleting file from R2: {e}", exc_info=True)
+                
+        # Delete the model instance
         super().delete(*args, **kwargs)
+        
         # Ensure sequence is still in sync after deletion
         self._ensure_sequence_sync()

@@ -136,7 +136,6 @@ def register_view(request):
             status=500
         )
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def login_view(request):
     try:
@@ -153,6 +152,9 @@ def login_view(request):
         logger.debug(f"[Login] Request method: {request.method}")
         logger.debug(f"[Login] Request headers: {dict(request.headers)}")
         logger.debug(f"[Login] Request META: { {k: v for k, v in request.META.items() if k.startswith('HTTP_')} }")
+        
+        # Get CSRF token from cookie if it exists
+        csrf_token = request.COOKIES.get('csrftoken')
         
         # Handle empty body
         if not request.body or request.body == b'':
@@ -222,6 +224,14 @@ def login_view(request):
             
             response = JsonResponse(response_data)
             
+            # Get or create CSRF token (use existing one if available)
+            csrf_token = request.META.get('CSRF_COOKIE')
+            if not csrf_token:
+                csrf_token = get_token(request)
+            
+            # Add CSRF token to response headers
+            response['X-CSRFToken'] = csrf_token
+            
             # Add CORS headers
             origin = request.headers.get('Origin', '')
             allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
@@ -233,6 +243,19 @@ def login_view(request):
                 response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
                 response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
                 response['Vary'] = 'Origin, Cookie'
+            
+            # Set CSRF cookie with same attributes as in get_csrf_token view
+            is_secure = request.is_secure()
+            response.set_cookie(
+                'csrftoken',
+                csrf_token,
+                max_age=60 * 60 * 24 * 7,  # 1 week
+                domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and not settings.DEBUG else None,
+                path='/',
+                secure=is_secure,
+                httponly=False,  # Must be False to be accessible via JavaScript
+                samesite='None' if is_secure else 'Lax'
+            )
             
             # Log response
             log_response(response, "[Login Success] ")

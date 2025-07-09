@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@types/node": "^24.0.3",
+    "@types/papaparse": "^5.3.16",
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.10.0",
+    "papaparse": "^5.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",

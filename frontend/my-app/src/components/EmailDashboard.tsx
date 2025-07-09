@@ -349,13 +349,30 @@ const EmailDashboard: FC = () => {
 
         console.log("Sending bulk request with entries:", entries);
 
-        const response = await makeRequest(`${API_BASE_URL}${ENDPOINTS.EMAIL_ENTRIES}bulk/`, {
-          method: "POST",
-          body: JSON.stringify(entries),
+        // Get CSRF token
+        const token = await fetchCsrfToken();
+        if (!token) {
+          throw new Error("Failed to get CSRF token");
+        }
+
+        // Create FormData for file upload
+        const formData = new FormData();
+        formData.append('file', csvFile);
+
+        // Send the request with proper headers
+        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.EMAIL_ENTRIES}bulk/`, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
           headers: {
-            "Content-Type": "application/json",
+            'X-CSRFToken': token,
           },
         });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to upload CSV');
+        }
 
         const result = await response.json();
 

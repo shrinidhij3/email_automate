@@ -94,6 +94,29 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'em_store.wsgi.application'
 
+# Cloudflare R2 Configuration
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('CLOUDFLARE_BUCKET_NAME', 'email-autoamation')
+AWS_S3_ENDPOINT_URL = 'https://r2.cloudflarestorage.com'
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com'
+AWS_DEFAULT_ACL = 'public-read'
+AWS_QUERYSTRING_AUTH = False
+AWS_S3_FILE_OVERWRITE = False
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
+# Modern Django (4.2+) storage configuration using STORAGES dictionary
+STORAGES = {
+    'default': {
+        'BACKEND': 'em_store.storage_backends.R2MediaStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'em_store.storage_backends.R2StaticStorage',
+    },
+}
+
 # Database configuration
 DATABASES = {
     'default': {
