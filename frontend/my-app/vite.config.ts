@@ -1,53 +1,42 @@
-import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
-import { resolve } from 'path';
+import { defineConfig, loadEnv } from "vite";
+import react from "@vitejs/plugin-react";
+import { resolve } from "path";
 
-// https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current directory.
-  const env = loadEnv(mode, process.cwd(), '');
-  
+  const env = loadEnv(mode, process.cwd(), "");
+
   return {
     plugins: [react()],
-    // Base public path when served in production
-    base: '/',
-    // Build configuration
+    base: "/",
     build: {
-      outDir: 'dist',
-      sourcemap: true, // Enable source maps for production
+      outDir: "dist",
+      sourcemap: false, // Disable in production for better performance
       rollupOptions: {
         output: {
           manualChunks: {
-            // Split vendor and app code for better caching
-            vendor: ['react', 'react-dom', 'react-router-dom'],
+            vendor: ["react", "react-dom", "react-router-dom"],
+            // Add other large dependencies here
           },
         },
       },
-      chunkSizeWarningLimit: 1600, // Size in KB
+      chunkSizeWarningLimit: 1000,
     },
-    // Development server configuration
     server: {
       port: 3000,
       strictPort: true,
       open: true,
       proxy: {
-        // Proxy API requests to your backend in development
-        '/api': {
-          target: env.VITE_API_BASE_URL || 'http://localhost:8000',
+        "/api": {
+          target: env.VITE_API_BASE_URL || "http://localhost:8000",
           changeOrigin: true,
-          secure: false,
+          secure: env.VITE_API_BASE_URL?.startsWith("https://") || false,
         },
       },
     },
-    // Resolve aliases for cleaner imports
     resolve: {
       alias: {
-        '@': resolve(__dirname, 'src'),
+        "@": resolve(__dirname, "src"),
       },
     },
-    // Environment variables
-    define: {
-      'process.env': {}
-    }
   };
 });

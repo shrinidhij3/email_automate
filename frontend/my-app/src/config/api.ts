@@ -1,11 +1,12 @@
 // API Configuration for both development and production environments
 const DEFAULT_LOCAL_BACKEND = "http://localhost:8000";
+const PRODUCTION_BACKEND = "https://email-automate-ob1a.onrender.com";
 
 // Get the base URL from environment variables or use defaults
 const getBaseUrl = () => {
-  // In production (on Render), use relative URLs for same-origin requests
+  // In production, use the production backend URL
   if (import.meta.env.PROD) {
-    return ''; // Use relative URLs in production
+    return PRODUCTION_BACKEND;
   }
   
   // In development, use the environment variable or default to local backend

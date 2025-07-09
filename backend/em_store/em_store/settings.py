@@ -114,6 +114,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://email-automate-1-1hwv.onrender.com',
+    'https://email-automate-ob1a.onrender.com',
 ]
 
 # Allow all methods needed by the frontend
@@ -167,6 +168,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://email-automate-1-1hwv.onrender.com',
+    'https://email-automate-ob1a.onrender.com',
 ]
 
 # CSRF settings
@@ -175,7 +177,7 @@ CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_HEADER_NAME = 'X-CSRFToken'  # Standard header name
 CSRF_COOKIE_HTTPONLY = False  # Required for JavaScript access
 CSRF_COOKIE_SECURE = not DEBUG  # True in production, False in development
-CSRF_COOKIE_SAMESITE = 'Lax'  # Changed to Lax for better compatibility
+CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # None for production with Secure=True, Lax for development
 CSRF_COOKIE_PATH = '/'
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
 
@@ -189,7 +191,7 @@ SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG  # True in production, False in development
-SESSION_COOKIE_SAMESITE = 'Lax'  # Changed to Lax for better compatibility
+SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # None for production with Secure=True, Lax for development
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'

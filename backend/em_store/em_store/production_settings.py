@@ -27,20 +27,23 @@ DATABASES = {
     }
 }
 
-# CORS settings for production - FIXED VERSION
+# CORS settings for production
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
-if not CORS_ALLOWED_ORIGINS[0]:  # If empty string, use default
-    CORS_ALLOWED_ORIGINS = [
-        'https://email-automate-1-1hwv.onrender.com',
-        'https://email-automate-ob1a.onrender.com',
-    ]
 
-# Add regex patterns for Vercel preview deployments
+# Allowed origins for CORS
+CORS_ALLOWED_ORIGINS = [
+    'https://email-automate-1-1hwv.onrender.com',
+    'https://email-automate-ob1a.onrender.com',
+]
+
+# Also allow environment variable override
+env_origins = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+if env_origins and env_origins[0]:
+    CORS_ALLOWED_ORIGINS.extend([origin.strip() for origin in env_origins if origin.strip()])
+
+# Add regex patterns for Render preview deployments
 CORS_ORIGIN_REGEX_WHITELIST = [
-    r'^https://\w+\.vercel\.app$',
-    r'^https://\w+\-\w+\.vercel\.app$',
-    r'^https://email-automate-eight-.*\.vercel\.app$',
+    r'^https:\/\/email-automate-\w+\-\w+\.onrender\.com$',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -78,12 +81,16 @@ CORS_EXPOSE_HEADERS = [
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
 # CSRF settings for production - FIXED for cross-origin
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
-if not CSRF_TRUSTED_ORIGINS[0]:  # If empty string, use default
-    CSRF_TRUSTED_ORIGINS = [
-        'https://email-automate-1-1hwv.onrender.com',
-        'https://email-automate-ob1a.onrender.com',
-    ]
+# CSRF trusted origins
+CSRF_TRUSTED_ORIGINS = [
+    'https://email-automate-1-1hwv.onrender.com',
+    'https://email-automate-ob1a.onrender.com',
+]
+
+# Also allow environment variable override
+env_csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+if env_csrf_origins and env_csrf_origins[0]:
+    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in env_csrf_origins if origin.strip()])
 
 CSRF_COOKIE_SECURE = True  # True for production HTTPS
 CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests

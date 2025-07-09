@@ -6,6 +6,8 @@ import { API_BASE_URL, ENDPOINTS } from "../config/api";
 
 // Create axios instance with default config
 // Create axios instance with default config
+console.log('API Base URL:', API_BASE_URL); // Debug log
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // Required for cookies and authentication
@@ -16,8 +18,23 @@ const api = axios.create({
   },
   xsrfCookieName: "csrftoken",
   xsrfHeaderName: "X-CSRFToken",
-  timeout: 30000, // 30 seconds timeout
+  timeout: 10000, // Reduced timeout to 10 seconds for faster feedback
 });
+
+// Add response interceptor for better error logging
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', {
+      message: error.message,
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+    return Promise.reject(error);
+  }
+);
 
 // Cache for CSRF token
 let csrfTokenCache: string | null = null;
