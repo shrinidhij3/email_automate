@@ -103,7 +103,8 @@ const LoginPage: React.FC = () => {
     try {
       if (isLogin) {
         console.log('Attempting login...');
-        await login(username, password);
+        // Trim username to prevent login issues
+        await login(username.trim(), password);
         console.log('Login successful, navigating to:', defaultRedirect);
         navigate(defaultRedirect, { replace: true });
       } else {
@@ -125,10 +126,14 @@ const LoginPage: React.FC = () => {
       console.error('Authentication error:', err);
       if (err.message && err.message.includes("Network Error")) {
         setError(
-          "Unable to connect to the server. Please check your internet connection."
+          "Unable to connect to the server. Please check your internet connection and try again."
         );
+      } else if (err.message && err.message.includes("Invalid credentials")) {
+        setError("Invalid username or password. Please check your credentials and try again.");
+      } else if (err.message && err.message.includes("User not found")) {
+        setError("User not found. Please check your username or register a new account.");
       } else {
-        setError(err.message || "Authentication failed. Please try again.");
+        setError(err.message || "Authentication failed. Please check your information and try again.");
       }
     } finally {
       console.log('Setting isLoading to false');
@@ -157,19 +162,7 @@ const LoginPage: React.FC = () => {
 
         {error && (
           <div className="error-message">
-            <svg
-              className="icon"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span>{error}</span>
+            <span className="error-text">{error}</span>
           </div>
         )}
 

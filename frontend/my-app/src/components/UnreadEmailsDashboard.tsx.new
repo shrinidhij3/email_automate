@@ -284,21 +284,18 @@ const UnreadEmailsDashboard: FC = () => {
             <input
               type="file"
               id="file-upload"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="file-input"
               multiple
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg"
+              onChange={handleFileChange}
+              ref={fileInputRef}
+              style={{ fontFamily: 'Inter, Arial, sans-serif', fontSize: '1rem' }}
             />
-            <div className="file-names">
-              {formData.files && 
-                Array.from(formData.files).map((file, index) => (
-                  <div key={index} className="file-name">
-                    {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                  </div>
-                ))
-              }
-            </div>
+            {formData.files && (
+              <ul style={{ fontFamily: 'Inter, Arial, sans-serif', fontSize: '1rem' }}>
+                {Array.from(formData.files).map((file, idx) => (
+                  <li key={idx}>{file.name}</li>
+                ))}
+              </ul>
+            )}
             {errors.attachments && (
               <span className="error-text">{errors.attachments}</span>
             )}

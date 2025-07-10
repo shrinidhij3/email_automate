@@ -6,6 +6,7 @@ import { ENDPOINTS, API_BASE_URL } from "../config/api";
 // NOTE: CSRF token handling is now managed globally via the shared api instance in src/api/api.ts
 // Remove all imports and usage of getCSRFToken from services/authService.
 import api from '../api/api'; // Import the shared api instance
+import { useAuth } from '../contexts/AuthContext';
 
 // Configure axios defaults for CORS
 axios.defaults.withCredentials = true;
@@ -61,6 +62,8 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 };
 
 const EmailConfigForm: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  
   // Form state
   const [formData, setFormData] = useState<EmailConfig>({
     name: "",
@@ -84,6 +87,27 @@ const EmailConfigForm: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMounted = useRef(true);
+
+  // Auto-fill client email when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const fetchUserEmail = async () => {
+        try {
+          const response = await api.get('/api/auth/user/');
+          if (response.data.user && response.data.user.email) {
+            setFormData(prev => ({
+              ...prev,
+              email: response.data.user.email
+            }));
+          }
+        } catch (error) {
+          console.error('Error fetching user email:', error);
+        }
+      };
+      
+      fetchUserEmail();
+    }
+  }, [isAuthenticated]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -215,7 +239,6 @@ const EmailConfigForm: React.FC = () => {
       }
 
       // Try to submit the form (but don't fail if it doesn't work)
-      let submissionId = null;
       try {
         // Use the correct API endpoint for email submissions (unread-emails, not campaigns)
         const endpoint = `${API_BASE_URL}${ENDPOINTS.UNREAD_EMAILS.SUBMISSIONS}`;
@@ -233,9 +256,6 @@ const EmailConfigForm: React.FC = () => {
           response.data
         );
 
-        if (response.data?.id) {
-          submissionId = response.data.id;
-        }
       } catch (submitError) {
         console.log(
           "Form submission failed (continuing to show thank you):",
@@ -345,6 +365,7 @@ const EmailConfigForm: React.FC = () => {
                     value={formData.provider}
                     onChange={handleProviderChange}
                     required
+                    className="provider-select"
                   >
                     <option value="gmail">Gmail</option>
                     <option value="other">Other (Enter Custom Provider)</option>
@@ -384,33 +405,18 @@ const EmailConfigForm: React.FC = () => {
                       common settings:
                     </p>
 
-                    <div className="server-examples">
-                      <div className="server-example">
+                    <div className="server-examples settings-stack-vertical">
+                      <div className="server-example settings-col-vertical">
                         <h5>Common IMAP Settings</h5>
-                        <p>
-                          <strong>Host:</strong> mail.yourdomain.com or
-                          imap.yourdomain.com
-                        </p>
-                        <p>
-                          <strong>Port:</strong> 993 (SSL) or 143 (TLS)
-                        </p>
-                        <p>
-                          <strong>Security:</strong> SSL/TLS or STARTTLS
-                        </p>
+                        <p><strong>Host:</strong> mail.yourdomain.com or imap.yourdomain.com</p>
+                        <p><strong>Port:</strong> 993 (SSL) or 143 (TLS)</p>
+                        <p><strong>Security:</strong> SSL/TLS or STARTTLS</p>
                       </div>
-
-                      <div className="server-example">
+                      <div className="server-example settings-col-vertical">
                         <h5>Common SMTP Settings</h5>
-                        <p>
-                          <strong>Host:</strong> mail.yourdomain.com or
-                          smtp.yourdomain.com
-                        </p>
-                        <p>
-                          <strong>Port:</strong> 465 (SSL) or 587 (TLS)
-                        </p>
-                        <p>
-                          <strong>Security:</strong> SSL/TLS or STARTTLS
-                        </p>
+                        <p><strong>Host:</strong> mail.yourdomain.com or smtp.yourdomain.com</p>
+                        <p><strong>Port:</strong> 465 (SSL) or 587 (TLS)</p>
+                        <p><strong>Security:</strong> SSL/TLS or STARTTLS</p>
                       </div>
                     </div>
 
@@ -627,12 +633,12 @@ const EmailConfigForm: React.FC = () => {
               <div className="form-group">
                 <input
                   type="file"
-                  id="files"
+                  id="file-upload"
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   multiple
                   required
-                  style={{ display: "none" }}
+                  style={{ fontFamily: 'Inter, Arial, sans-serif', fontSize: '1rem' }}
                 />
                 <button
                   type="button"
@@ -641,17 +647,12 @@ const EmailConfigForm: React.FC = () => {
                 >
                   Choose Files *
                 </button>
-                {formData.files && formData.files.length > 0 && (
-                  <div className="file-list">
-                    <p>Selected files:</p>
-                    <ul>
-                      {Array.from(formData.files).map((file, index) => (
-                        <li key={`${file.name}-${file.size}-${index}`}>
-                          {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                {formData.files && (
+                  <ul style={{ fontFamily: 'Inter, Arial, sans-serif', fontSize: '1rem' }}>
+                    {Array.from(formData.files).map((file, idx) => (
+                      <li key={idx}>{file.name}</li>
+                    ))}
+                  </ul>
                 )}
                 {!formData.files || formData.files.length === 0 && (
                   <p style={{ color: '#e74c3c', fontSize: '0.9rem', marginTop: '0.5rem' }}>

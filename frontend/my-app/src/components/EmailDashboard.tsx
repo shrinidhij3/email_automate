@@ -45,6 +45,23 @@ const EmailDashboard: FC = () => {
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
     
+    // Auto-fill client email when user is authenticated
+    const fetchUserEmail = async () => {
+      try {
+        const response = await api.get('/api/auth/user/');
+        if (response.data.user && response.data.user.email) {
+          setFormData(prev => ({
+            ...prev,
+            client_email: response.data.user.email
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching user email:', error);
+      }
+    };
+    
+    fetchUserEmail();
+    
     // Check if user has campaigns
     api.get("/api/campaigns/check_user_campaigns/")
       .then((response: any) => {
@@ -317,10 +334,13 @@ const EmailDashboard: FC = () => {
         }
       } catch (error) {
         console.error("Upload error:", error);
-        showMessage(
-          error instanceof Error ? error.message : "Error processing CSV",
-          "error"
-        );
+        let errorMessage = "Error processing CSV";
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === "string") {
+          errorMessage = error;
+        }
+        showMessage(errorMessage, "error");
       } finally {
         setIsSubmittingBulk(false);
       }

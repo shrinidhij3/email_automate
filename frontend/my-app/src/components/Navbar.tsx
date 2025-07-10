@@ -1,27 +1,42 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import './Navbar.css';
 
 const Navbar: React.FC = () => {
   const { logout, isAuthenticated } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleNavClick = (path: string) => {
+    setMenuOpen(false);
+    if (path === '/dashboard/upload' && !isAuthenticated) {
+      navigate('/login');
+    } else {
+      navigate(path);
+    }
+  };
 
   return (
     <nav className="navbar">
       <div className="navbar-brand">
         <Link to="/" className="logo">
-          Email Campaign
+          Email Automation
         </Link>
+        <button className="hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation">
+          <span className="bar"></span>
+          <span className="bar"></span>
+          <span className="bar"></span>
+        </button>
       </div>
-      <div className="navbar-links">
+      <div className={`navbar-links${menuOpen ? ' open' : ''}`}>
         {isAuthenticated ? (
           <>
-            <Link to="/dashboard/upload" className="nav-link">Create Campaign</Link>
-            <Link to="/unread-emails" className="nav-link">Unread Emails</Link>
-            {isAuthenticated && (
-              <button className="logout-btn" onClick={logout} style={{ marginLeft: '1rem' }}>
-                Logout
-              </button>
-            )}
+            <button className="nav-link" onClick={() => handleNavClick('/login')}>Create Campaign</button>
+            <Link to="/unread-emails" className="nav-link">Email Auto Reply</Link>
+            <button className="logout-btn" onClick={logout}>
+              Logout
+            </button>
           </>
         ) : (
           <>

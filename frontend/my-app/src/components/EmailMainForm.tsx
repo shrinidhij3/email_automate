@@ -131,15 +131,6 @@ function EmailMainForm() {
     }
   };
 
-  const removeFile = (index: number) => {
-    const newFiles = [...formData.files];
-    const newFileNames = [...fileNames];
-    newFiles.splice(index, 1);
-    newFileNames.splice(index, 1);
-    setFormData((prev) => ({ ...prev, files: newFiles }));
-    setFileNames(newFileNames);
-  };
-
   const nextStep = () => {
     if (currentStep < totalSteps) setCurrentStep((prev) => prev + 1);
   };
@@ -638,8 +629,8 @@ function EmailMainForm() {
 
                   <div
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      display: "flex",
+                      flexDirection: "column",
                       gap: "20px",
                       marginBottom: "20px",
                     }}
@@ -829,7 +820,7 @@ function EmailMainForm() {
           <div className="form-step">
             <h3>Attachments</h3>
             <p className="form-instruction">
-              Upload any files you'd like to attach to your email. (Optional)
+              Upload pdf files you'd like to attach to your email. 
             </p>
             <div
               className={`file-upload-container ${
@@ -841,11 +832,9 @@ function EmailMainForm() {
                 <input
                   type="file"
                   id="file-upload"
-                  onChange={handleFileChange}
                   multiple
-                  accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.csv,.jpg,.jpeg,.png"
-                  className="file-input"
-                  aria-label="Upload files"
+                  onChange={handleFileChange}
+                  style={{ fontFamily: 'Inter, Arial, sans-serif', fontSize: '1rem' }}
                 />
                 <label htmlFor="file-upload" className="btn btn-outline">
                   Select Files
@@ -854,19 +843,9 @@ function EmailMainForm() {
               {fileNames.length > 0 && (
                 <div className="file-list">
                   <h4>Selected Files:</h4>
-                  <ul>
-                    {fileNames.map((fileName, index) => (
-                      <li key={index}>
-                        <span>{fileName}</span>
-                        <button
-                          type="button"
-                          className="btn-link btn-remove"
-                          onClick={() => removeFile(index)}
-                          aria-label={`Remove ${fileName}`}
-                        >
-                          ×
-                        </button>
-                      </li>
+                  <ul style={{ fontFamily: 'Inter, Arial, sans-serif', fontSize: '1rem' }}>
+                    {fileNames.map((name, idx) => (
+                      <li key={idx}>{name}</li>
                     ))}
                   </ul>
                 </div>
@@ -907,7 +886,7 @@ function EmailMainForm() {
                   </li>
                 </ol>
                 <div className="logo-note">
-                  <strong>Note:</strong> Please include your company logo in JPG format if available.
+                  <strong>Note:</strong> Please include your company logo in JPG format along with the PDF.
                 </div>
               </div>
             </div>

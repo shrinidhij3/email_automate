@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "./Home.css";
-import { getApiUrl, ENDPOINTS } from "../config/api";
+import { ENDPOINTS } from "../config/api";
 import api from '../api/api'; // Use the shared api instance
 
 // SVG Icons
@@ -198,7 +198,7 @@ const Home: React.FC = () => {
             <div style={{ marginRight: "0.5rem" }}>
               <MailIcon />
             </div>
-            <span>Unread Emails</span>
+            <span>Email auto reply</span>
           </button>
           <button
             className="btn btn-secondary"
