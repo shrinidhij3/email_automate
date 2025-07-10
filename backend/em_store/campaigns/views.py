@@ -1,43 +1,20 @@
 import logging
-from rest_framework import status, viewsets, mixins
+from typing import TYPE_CHECKING
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from django.core.files.uploadedfile import InMemoryUploadedFile
-from django.db import connection
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django.db import transaction
+from django.core.exceptions import ValidationError
 
 from .models import EmailCampaign, CampaignEmailAttachment
 from .serializers import EmailCampaignSerializer, CampaignEmailAttachmentSerializer
+from .utils import ensure_sequence_sync
 
+if TYPE_CHECKING:
+    from django.db.models import QuerySet
 
-def check_and_fix_sequence():
-    """
-    Check if the sequence needs to be updated and fix it if necessary.
-    Returns True if the sequence was fixed, False otherwise.
-    """
-    with connection.cursor() as cursor:
-        # Get current max ID
-        cursor.execute("SELECT COALESCE(MAX(id), 0) FROM campaigns_campaignemailattachment")
-        max_id = cursor.fetchone()[0]
-        
-        # Get current sequence value
-        cursor.execute("SELECT last_value FROM campaigns_campaignemailattachment_id_seq")
-        current_seq = cursor.fetchone()[0]
-        
-        logger.info(f"Current max ID: {max_id}, Current sequence: {current_seq}")
-        
-        # If sequence needs updating
-        if current_seq <= max_id:
-            new_seq = max_id + 1
-            logger.warning(f"Sequence needs update. Setting sequence to {new_seq}")
-            cursor.execute(
-                "ALTER SEQUENCE campaigns_campaignemailattachment_id_seq RESTART WITH %s",
-                [new_seq]
-            )
-            logger.info(f"Sequence updated to {new_seq}")
-            return True
-    return False
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +22,32 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing email campaigns.
     """
-    queryset = EmailCampaign.objects.all()
+    queryset = EmailCampaign._default_manager.all()
     serializer_class = EmailCampaignSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
-    def get_queryset(self):
+    def get_queryset(self) -> 'QuerySet[EmailCampaign]':
         """Return only campaigns created by the current user."""
         return self.queryset.filter(created_by=self.request.user)
 
     def perform_create(self, serializer):
         """Set the created_by field to the current user."""
         serializer.save(created_by=self.request.user)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def check_user_campaigns(self, request):
+        """
+        Check if the current user has any campaigns.
+        Returns True if user has campaigns, False otherwise.
+        """
+        user_campaigns = self.get_queryset()
+        has_campaigns = user_campaigns.exists()
+        
+        return Response({
+            'has_campaigns': has_campaigns,
+            'campaign_count': user_campaigns.count()
+        })
 
     def create(self, request, *args, **kwargs):
         """
@@ -73,7 +65,7 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
         logger.info(f"Request data: {log_data}")
         
         # Log files info
-        files = request.FILES.getlist('files', [])
+        files = request.FILES.getlist('uploaded_files', [])
         logger.info(f"Found {len(files)} files in request")
         for i, file in enumerate(files, 1):
             logger.info(f"  File {i}: {file.name} ({file.size} bytes, {file.content_type})")
@@ -111,7 +103,7 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
                             
                         # Create attachment with unique filename to avoid conflicts
                         try:
-                            attachment = CampaignEmailAttachment.objects.create(
+                            attachment = CampaignEmailAttachment._default_manager.create(
                                 email_campaign=campaign,
                                 file=file,
                                 original_filename=file.name,
@@ -162,7 +154,7 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
         
         # Check and fix sequence before creating attachments
         try:
-            sequence_was_fixed = check_and_fix_sequence()
+            sequence_was_fixed = ensure_sequence_sync()
             if sequence_was_fixed:
                 logger.info("Sequence was fixed before uploading new attachments")
         except Exception as e:
@@ -178,7 +170,7 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
                     continue
                     
                 # Create attachment with error handling
-                attachment = CampaignEmailAttachment.objects.create(
+                attachment = CampaignEmailAttachment._default_manager.create(
                     email_campaign=campaign,
                     file=file,
                     original_filename=file.name,

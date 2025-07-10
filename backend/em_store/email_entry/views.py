@@ -58,10 +58,11 @@ def log_database_info():
 class EmailEntryViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows email entries to be viewed or edited.
+    No authentication required for public email submissions.
     """
     queryset = EmailEntry.objects.all()
     serializer_class = EmailEntrySerializer
-    permission_classes = [AllowAny]  # For development only
+    permission_classes = [AllowAny]  # No authentication required for email submissions
     
     def get_serializer_context(self):
         """Add request and campaign_id to the serializer context."""

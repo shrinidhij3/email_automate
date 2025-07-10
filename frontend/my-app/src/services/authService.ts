@@ -9,24 +9,17 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Define the AuthService interface
 interface AuthService {
-  register(
-    username: string,
-    email: string,
-    password: string,
-    password2: string,
-    firstName?: string,
-    lastName?: string
-  ): Promise<User>;
-  login(username: string, password: string): Promise<User>;
+  login(username: string, password: string): Promise<AuthSuccessResponse>;
+  register(userData: RegisterData): Promise<AuthSuccessResponse>;
   logout(): Promise<void>;
   getCurrentUser(forceRefresh?: boolean): Promise<User | null>;
   isAuthenticated(): Promise<boolean>;
   clearCache(): void;
-  getCSRFToken: () => Promise<string>;
+  storeTokens(accessToken: string, refreshToken: string): void;
+  clearTokens(): void;
 }
 
-// Add a small delay to prevent race conditions
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Remove unused delay, createCacheKey, cacheRequest, handleApiError
 
 export interface User {
   id: number;
@@ -36,8 +29,19 @@ export interface User {
   last_name?: string;
 }
 
+export interface RegisterData {
+  username: string;
+  email: string;
+  password: string;
+  password2: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 export interface AuthSuccessResponse {
   user: User;
+  access_token: string;
+  refresh_token: string;
   message?: string;
 }
 
@@ -55,11 +59,6 @@ export interface ErrorResponse {
 // Request cache to prevent duplicate API calls
 const requestCache = new Map<string, Promise<any>>();
 
-// Helper function to create cache key
-function createCacheKey(method: string, url: string, data?: any): string {
-  return `${method}:${url}:${JSON.stringify(data || {})}`;
-}
-
 // Helper function to cache requests
 function cacheRequest<T>(key: string, requestPromise: Promise<T>): Promise<T> {
   requestCache.set(key, requestPromise);
@@ -67,219 +66,67 @@ function cacheRequest<T>(key: string, requestPromise: Promise<T>): Promise<T> {
   return requestPromise;
 }
 
-// Cache for CSRF token
-const csrfCache = {
-  token: null as string | null,
-  promise: null as Promise<string> | null,
-  clear() {
-    this.token = null;
-    this.promise = null;
-  },
+// Secure token storage functions
+const TOKEN_KEYS = {
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token',
 };
 
-export async function getCSRFToken(): Promise<string> {
-  if (csrfCache.token) return csrfCache.token;
-
-  if (csrfCache.promise) return csrfCache.promise;
-
-  csrfCache.promise = (async () => {
+// Auth service implementation - ENHANCED VERSION
+const authService: AuthService = {
+  async login(username: string, password: string): Promise<AuthSuccessResponse> {
     try {
-      const response = await api.get<{ csrfToken: string }>(
-        ENDPOINTS.AUTH.CSRF
-      );
-      csrfCache.token = response.data.csrfToken;
-      return csrfCache.token;
+      const response = await api.post<AuthSuccessResponse>(ENDPOINTS.AUTH.LOGIN, {
+        username,
+        password,
+      });
+
+      if (response.data?.access_token && response.data?.refresh_token) {
+        this.storeTokens(response.data.access_token, response.data.refresh_token);
+        this.clearCache(); // Clear cache on new login
+      }
+
+      return response.data;
     } catch (error) {
-      csrfCache.promise = null;
+      console.error("Login error:", error);
       throw error;
     }
-  })();
-  return csrfCache.promise;
-}
-
-// Helper function to handle API errors
-function handleApiError(error: unknown): Promise<never> {
-  if (error instanceof AxiosError) {
-    const message = error.response?.data?.error || error.message;
-    console.error("API Error:", {
-      message,
-      status: error.response?.status,
-      url: error.config?.url,
-      method: error.config?.method,
-    });
-    return Promise.reject(new Error(message || "An unknown error occurred"));
-  }
-  console.error("Unexpected error:", error);
-  return Promise.reject(new Error("An unexpected error occurred"));
-}
-
-// Auth service implementation - FIXED VERSION
-const authService: AuthService = {
-  async register(
-    username: string,
-    email: string,
-    password: string,
-    password2: string,
-    firstName: string = "",
-    lastName: string = ""
-  ): Promise<User> {
-    if (!username || !email || !password || !password2) {
-      throw new Error("All fields are required");
-    }
-
-    if (password !== password2) {
-      throw new Error("Passwords do not match");
-    }
-
-    const registrationData = {
-      username: username.trim(),
-      email: email.trim(),
-      password: password,
-      password2: password2,
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-    };
-
-    const cacheKey = createCacheKey(
-      "POST",
-      ENDPOINTS.AUTH.REGISTER,
-      registrationData
-    );
-
-    if (requestCache.has(cacheKey)) {
-      console.log("[Auth] Registration request already in progress");
-      return requestCache.get(cacheKey)!;
-    }
-
-    const registrationPromise = (async () => {
-      try {
-        await getCSRFToken();
-
-        console.log("Registration data:", {
-          ...registrationData,
-          password: "***",
-        });
-
-        interface RegisterResponse {
-          user?: User;
-          message?: string;
-          [key: string]: any;
-        }
-
-        const response = await api.post<RegisterResponse>(
-          ENDPOINTS.AUTH.REGISTER,
-          registrationData,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              "X-Requested-With": "XMLHttpRequest",
-            },
-            withCredentials: true,
-          }
-        );
-
-        console.log("Registration response:", {
-          status: response.status,
-          data: response.data,
-        });
-
-        currentUserCache = null;
-        cacheTimestamp = 0;
-
-        const responseData = response.data;
-
-        if (response.data?.user) {
-          return responseData.user;
-        }
-
-        if (responseData.id && responseData.username) {
-          return responseData as unknown as User;
-        }
-
-        console.error("Unexpected registration response format:", responseData);
-        throw new Error("Invalid response format from server");
-      } catch (error) {
-        // Handle the error and ensure we maintain the Promise<User> return type
-        return handleApiError(error).catch(error => {
-          // Re-throw the error to maintain the Promise<User> type
-          throw error;
-        }) as Promise<User>;
-      }
-    })();
-
-    return cacheRequest(cacheKey, registrationPromise as Promise<User>);
   },
 
-  async login(username: string, password: string): Promise<User> {
-    const cacheKey = createCacheKey("POST", ENDPOINTS.AUTH.LOGIN, { username });
+  async register(userData: RegisterData): Promise<AuthSuccessResponse> {
+    try {
+      const response = await api.post<AuthSuccessResponse>(ENDPOINTS.AUTH.REGISTER, userData);
 
-    if (requestCache.has(cacheKey)) {
-      console.log("[Auth] Login request already in progress");
-      return requestCache.get(cacheKey)!;
-    }
-
-    const loginPromise = (async () => {
-      try {
-        console.log("[Auth] Login attempt for user:", username);
-
-        await delay(100);
-
-        const csrfToken = await getCSRFToken();
-
-        const response = await api.post<AuthSuccessResponse>(
-          ENDPOINTS.AUTH.LOGIN,
-          { username, password },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              "X-Requested-With": "XMLHttpRequest",
-              "X-CSRFToken": csrfToken,
-            },
-            withCredentials: true,
-          }
-        );
-
-        if (response.data?.user) {
-          const user = response.data.user;
-          currentUserCache = Promise.resolve(user);
-          cacheTimestamp = Date.now();
-          return user;
-        }
-
-        throw new Error("Invalid response from server");
-      } catch (error) {
-        currentUserCache = null;
-        cacheTimestamp = 0;
-
-        if (error instanceof AxiosError && error.response?.status === 403) {
-          csrfCache.clear();
-        }
-
-        return handleApiError(error);
+      if (response.data?.access_token && response.data?.refresh_token) {
+        this.storeTokens(response.data.access_token, response.data.refresh_token);
+        this.clearCache(); // Clear cache on new registration
       }
-    })();
 
-    return cacheRequest(cacheKey, loginPromise);
+      return response.data;
+    } catch (error) {
+      console.error("Registration error:", error);
+      throw error;
+    }
   },
 
-  // FIXED LOGOUT METHOD - Single definition with comprehensive cleanup
   async logout(): Promise<void> {
     try {
       console.log("[Auth] Starting logout process");
-      const csrfToken = await getCSRFToken();
       
       // Clear all caches before making the logout request
       this.clearCache();
       
+      // Get refresh token for logout request
+      const refreshToken = localStorage.getItem(TOKEN_KEYS.REFRESH_TOKEN);
+      
       // Make logout request to server
       await api.post(
         ENDPOINTS.AUTH.LOGOUT,
-        {},
+        { refresh_token: refreshToken },
         {
           headers: {
             "Content-Type": "application/json",
             "X-Requested-With": "XMLHttpRequest",
-            "X-CSRFToken": csrfToken,
           },
           withCredentials: true,
         }
@@ -291,10 +138,7 @@ const authService: AuthService = {
       // Even if the server request fails, we still want to clear local state
     } finally {
       // Clear all local storage
-      if (typeof window !== "undefined") {
-        localStorage.clear(); // Clear all localStorage
-        sessionStorage.clear();
-      }
+      this.clearTokens();
       
       // Clear all caches again to be safe
       this.clearCache();
@@ -332,8 +176,6 @@ const authService: AuthService = {
     }
 
     try {
-      await getCSRFToken();
-
       const response = await api.get<AuthSuccessResponse>(ENDPOINTS.AUTH.USER, {
         withCredentials: true,
         headers: {
@@ -357,11 +199,6 @@ const authService: AuthService = {
       ) {
         currentUserCache = null;
         cacheTimestamp = 0;
-
-        if (error.response?.status === 403) {
-          csrfCache.clear();
-        }
-
         return null;
       }
 
@@ -370,9 +207,15 @@ const authService: AuthService = {
     }
   },
 
-  async isAuthenticated(forceRefresh = true): Promise<boolean> {
+  async isAuthenticated(forceRefresh = false): Promise<boolean> {
     try {
-      // Force a fresh check by default to ensure we don't use cached data
+      // Check if we have tokens first
+      const accessToken = localStorage.getItem(TOKEN_KEYS.ACCESS_TOKEN);
+      if (!accessToken) {
+        return false;
+      }
+
+      // Only force refresh if explicitly requested
       const user = await this.getCurrentUser(forceRefresh);
       return !!user;
     } catch (error) {
@@ -386,17 +229,29 @@ const authService: AuthService = {
     currentUserCache = null;
     cacheTimestamp = 0;
     requestCache.clear();
-    csrfCache.clear();
     console.log("[Auth] All caches cleared");
   },
 
-  // Re-export getCSRFToken for external use
-  getCSRFToken,
-};
+  // Secure token storage
+  storeTokens(accessToken: string, refreshToken: string): void {
+    try {
+      localStorage.setItem(TOKEN_KEYS.ACCESS_TOKEN, accessToken);
+      localStorage.setItem(TOKEN_KEYS.REFRESH_TOKEN, refreshToken);
+      console.log("[Auth] Tokens stored securely");
+    } catch (error) {
+      console.error("Error storing tokens:", error);
+    }
+  },
 
-// Add cache clear method to getCSRFToken
-getCSRFToken.cacheClear = () => {
-  csrfCache.clear();
+  clearTokens(): void {
+    try {
+      localStorage.removeItem(TOKEN_KEYS.ACCESS_TOKEN);
+      localStorage.removeItem(TOKEN_KEYS.REFRESH_TOKEN);
+      console.log("[Auth] Tokens cleared");
+    } catch (error) {
+      console.error("Error clearing tokens:", error);
+    }
+  },
 };
 
 export default authService;

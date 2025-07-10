@@ -2,6 +2,8 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "./Home.css";
+import { getApiUrl, ENDPOINTS } from "../config/api";
+import api from '../api/api'; // Use the shared api instance
 
 // SVG Icons
 const RocketIcon = () => (
@@ -131,10 +133,22 @@ const Home: React.FC = () => {
     navigate("/unread-emails");
   };
 
-  const handleEmailCampaignClick = () => {
-    if (isAuthenticated) {
-      navigate("/email-dashboard");
-    } else {
+  const handleEmailCampaignClick = async () => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: "/email-dashboard" } });
+      return;
+    }
+    try {
+      // Fetch campaigns for the current user
+      const response = await api.get(ENDPOINTS.CAMPAIGNS.BASE);
+      const data = response.data;
+      if (Array.isArray(data) && data.length > 0) {
+        navigate("/email-dashboard");
+      } else {
+        navigate("/dashboard/upload");
+      }
+    } catch (err) {
+      // If error (e.g., session expired), redirect to login
       navigate("/login", { state: { from: "/email-dashboard" } });
     }
   };

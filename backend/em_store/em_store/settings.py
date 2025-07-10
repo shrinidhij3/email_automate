@@ -63,7 +63,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    'em_store.middleware.CustomCSRFMiddleware',  # Custom CSRF middleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -137,8 +137,12 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://email-automate-1-1hwv.onrender.com',
-    'https://email-automate-ob1a.onrender.com',
 ]
+
+# Add environment variable override for CORS origins
+env_cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+if env_cors_origins and env_cors_origins[0]:
+    CORS_ALLOWED_ORIGINS.extend([origin.strip() for origin in env_cors_origins if origin.strip()])
 
 # Allow all methods needed by the frontend
 CORS_ALLOW_METHODS = [
@@ -157,77 +161,77 @@ CORS_ALLOW_HEADERS = [
     'authorization',
     'content-type',
     'dnt',
-    'expires',  # Adding expires header for cache control
+    'expires',
     'origin',
     'user-agent',
-    'x-csrftoken',  # Standard CSRF token header
     'x-requested-with',
     'cache-control',
     'pragma',
-    'x-xsrf-token',  # Some libraries use this
 ]
 
 # Expose headers that the frontend needs to access
 CORS_EXPOSE_HEADERS = [
     'Content-Type',
-    'X-CSRFToken',
     'Content-Length',
     'X-Requested-With',
-    'Set-Cookie',
     'Authorization',
-    'X-CSRF-Token',
 ]
 
 # Cache preflight requests for 1 day
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
-# Allow cookies to be included in cross-site HTTP requests
-CORS_ALLOW_CREDENTIALS = True
+# JWT Settings
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    'JTI_CLAIM': 'jti',
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(hours=24),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),
+}
 
-# CSRF configuration
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://email-automate-1-1hwv.onrender.com',
-    'https://email-automate-ob1a.onrender.com',
-]
-
-# CSRF settings
-CSRF_USE_SESSIONS = False
-CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_HEADER_NAME = 'X-CSRFToken'  # Standard header name
-CSRF_COOKIE_HTTPONLY = False  # Required for JavaScript access
-CSRF_COOKIE_SECURE = not DEBUG  # True in production, False in development
-CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # None for production with Secure=True, Lax for development
-CSRF_COOKIE_PATH = '/'
-CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
-
-# Remove domain specification to allow cross-domain cookies
-# This lets the browser handle the domain based on the request
-CSRF_COOKIE_DOMAIN = None
-
-# Session configuration
+# Session configuration (simplified - no CSRF needed)
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = not DEBUG  # True in production, False in development
-SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # None for production with Secure=True, Lax for development
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'
-
-# Remove domain specification to allow cross-domain cookies
-# This lets the browser handle the domain based on the request
 SESSION_COOKIE_DOMAIN = None
+
+# Handle cookie settings for different environments
+if DEBUG:
+    # Development: Allow cross-origin cookies without Secure flag
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = 'None'
+else:
+    # Production: Require Secure flag for cross-origin cookies
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'None'
 
 # REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -250,6 +254,26 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = 'same-origin'
 
+# CSRF settings - exclude API endpoints
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://email-automate-1-1hwv.onrender.com',
+    'https://email-automate-ob1a.onrender.com',
+]
+
+# Add environment variable override for CSRF trusted origins
+env_csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+if env_csrf_origins and env_csrf_origins[0]:
+    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in env_csrf_origins if origin.strip()])
+
+# Exclude API endpoints from CSRF protection
+CSRF_EXEMPT_URLS = [
+    r'^/api/.*$',  # All API endpoints
+]
+
 # Static files configuration
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
@@ -258,19 +282,28 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Storage configuration for development
-STORAGES = {
-    'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
-    },
-    'staticfiles': {
-        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
-    },
-}
-
 # File upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Allowed file types for uploads
+ALLOWED_FILE_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain',
+    'text/csv',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'application/zip',
+    'application/x-zip-compressed',
+]
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
@@ -313,6 +346,11 @@ LOGGING = {
             'propagate': True,
         },
         'corsheaders': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'auth_app': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
             'propagate': False,

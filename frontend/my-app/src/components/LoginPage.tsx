@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "./LoginPage.css";
 
@@ -14,36 +14,33 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login, register, checkAuth } = useAuth();
+  const { login, register } = useAuth();
 
   const defaultRedirect = "/email-dashboard";
   const registerRedirect = "/dashboard/upload";
-  const from = location.state?.from?.pathname || defaultRedirect;
+  // Remove unused checkAuth and from
+  // const { login, register, checkAuth } = useAuth();
 
-  useEffect(() => {
-    let isMounted = true;
-    
-    const checkAuthStatus = async () => {
-      try {
-        const isAuth = await checkAuth();
-        if (isMounted && isAuth) {
-          navigate(from, { replace: true });
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      }
-    };
-    
-    // Only run the check if we're not already in the middle of a login attempt
-    if (!isLoading) {
-      checkAuthStatus();
-    }
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [checkAuth, from, navigate, isLoading]);
+  // Remove this useEffect that checks for existing session on mount
+  // useEffect(() => {
+  //   let isMounted = true;
+  //   const checkAuthStatus = async () => {
+  //     try {
+  //       const isAuth = await checkAuth();
+  //       if (isMounted && isAuth) {
+  //         navigate(from, { replace: true });
+  //       }
+  //     } catch (error) {
+  //       console.error('Auth check failed:', error);
+  //     }
+  //   };
+  //   if (!isLoading) {
+  //     checkAuthStatus();
+  //   }
+  //   return () => {
+  //     isMounted = false;
+  //   };
+  // }, [checkAuth, from, navigate, isLoading]);
 
   const validateEmail = (email: string): boolean => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -90,27 +87,42 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('Form submission started', { isLogin, isLoading });
+    
     setError("");
     if (!validateForm()) return;
+
+    if (isLoading) {
+      console.log('Already loading, preventing duplicate submission');
+      return;
+    }
 
     setIsLoading(true);
     try {
       if (isLogin) {
+        console.log('Attempting login...');
         await login(username, password);
+        console.log('Login successful, navigating to:', defaultRedirect);
         navigate(defaultRedirect, { replace: true });
       } else {
-        await register(
-          username.trim(),
-          email.trim(),
+        console.log('Attempting registration...');
+        await register({
+          username: username.trim(),
+          email: email.trim(),
           password,
-          confirmPassword,
-          firstName.trim(),
-          lastName.trim()
-        );
+          password2: confirmPassword,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+        });
+        console.log('Registration successful, waiting before navigation...');
         await new Promise((resolve) => setTimeout(resolve, 500));
+        console.log('Navigating to:', registerRedirect);
         navigate(registerRedirect, { replace: true });
       }
     } catch (err: any) {
+      console.error('Authentication error:', err);
       if (err.message && err.message.includes("Network Error")) {
         setError(
           "Unable to connect to the server. Please check your internet connection."
@@ -119,6 +131,7 @@ const LoginPage: React.FC = () => {
         setError(err.message || "Authentication failed. Please try again.");
       }
     } finally {
+      console.log('Setting isLoading to false');
       setIsLoading(false);
     }
   };

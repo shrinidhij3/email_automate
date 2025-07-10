@@ -11,21 +11,19 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 # Password hashing removed - storing in plaintext
-from django.middleware.csrf import get_token
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils.decorators import method_decorator
 from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.decorators import api_view
 from django.http import HttpResponse, Http404
@@ -40,21 +38,6 @@ from .serializers import (
 
 logger = logging.getLogger(__name__)
 
-class CsrfTokenView(APIView):
-    """
-    View to get CSRF token for the session
-    """
-    permission_classes = [AllowAny]
-    
-    def get(self, request, format=None):
-        """
-        Get CSRF token for the current session
-        """
-        # This will set the CSRF cookie in the response
-        token = get_token(request)
-        return JsonResponse({'csrfToken': token})
-
-
 class TestAPIView(APIView):
     """
     Simple test API view to verify the API is working
@@ -68,7 +51,6 @@ class TestAPIView(APIView):
             'message': 'Test API endpoint is working!',
             'method': 'GET',
             'data': request.query_params,
-            'csrf_token': get_token(request) if request.user.is_authenticated else 'Not authenticated',
         })
         
     def post(self, request, format=None):
@@ -146,7 +128,7 @@ class UnreadEmailViewSet(viewsets.ModelViewSet):
     """
     queryset = UnreadEmail.objects.all()
     serializer_class = UnreadEmailSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     http_method_names = ['get', 'post', 'head']  # Disable put/patch/delete
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     

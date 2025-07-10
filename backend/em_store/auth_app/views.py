@@ -1,16 +1,28 @@
 import json
 import logging
 from django.http import JsonResponse, HttpResponse
-from django.middleware.csrf import get_token
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.db import IntegrityError
 from django.conf import settings
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth import get_user_model
+from rest_framework import serializers
+from rest_framework import generics, status
+from rest_framework.response import Response
+from .serializers import UserRegistrationSerializer
+from django.utils.decorators import method_decorator
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 # Get an instance of a logger
 logger = logging.getLogger('auth_app')
@@ -20,7 +32,6 @@ def log_request(request, prefix=""):
     logger.debug(f"{prefix}Request: {request.method} {request.path}")
     logger.debug(f"{prefix}Headers: {dict(request.headers)}")
     logger.debug(f"{prefix}Cookies: {request.COOKIES}")
-    logger.debug(f"{prefix}Session: {dict(request.session)}")
     if request.body:
         try:
             logger.debug(f"{prefix}Body: {request.body.decode('utf-8')}")
@@ -31,391 +42,126 @@ def log_response(response, prefix=""):
     """Log response details"""
     logger.debug(f"{prefix}Response: {response.status_code}")
     logger.debug(f"{prefix}Response Headers: {dict(response.headers)}")
-    if hasattr(response, 'cookies') and response.cookies:
-        logger.debug(f"{prefix}Response Cookies: {response.cookies}")
     if hasattr(response, 'content'):
         try:
             logger.debug(f"{prefix}Response Content: {response.content.decode('utf-8')}")
         except:
             logger.debug(f"{prefix}Response Content: (binary data)")
 
-@csrf_exempt
-@require_http_methods(["POST", "OPTIONS"])
-def register_view(request):
-    # Handle OPTIONS preflight
-    if request.method == 'OPTIONS':
-        response = JsonResponse({}, status=200)
-    else:
-        try:
-            data = json.loads(request.body)
-            username = data.get('username')
-            email = data.get('email')
-            password = data.get('password')
-            password2 = data.get('password2', '')
-            first_name = data.get('first_name', '')
-            last_name = data.get('last_name', '')
-            
-            # Validate required fields
-            if not all([username, email, password, password2]):
-                response = JsonResponse(
-                    {'status': 'error', 'message': 'Please provide all required fields'}, 
-                    status=400
-                )
-            # Check if passwords match
-            elif password != password2:
-                response = JsonResponse(
-                    {'status': 'error', 'message': 'Passwords do not match'}, 
-                    status=400
-                )
-            # Check if username already exists
-            elif User.objects.filter(username=username).exists():
-                response = JsonResponse(
-                    {'status': 'error', 'message': 'Username already exists'}, 
-                    status=400
-                )
-            # Check if email already exists
-            elif User.objects.filter(email=email).exists():
-                response = JsonResponse(
-                    {'status': 'error', 'message': 'Email already registered'}, 
-                    status=400
-                )
-            else:
-                # Create user with additional fields
-                user = User.objects.create_user(
-                    username=username,
-                    email=email,
-                    password=password,
-                    first_name=first_name,
-                    last_name=last_name
-                )
-                
-                # Log the user in
-                login(request, user)
-                response = JsonResponse({
-                    'status': 'success',
-                    'message': 'Registration successful',
-                    'user': {
-                        'id': user.id,
-                        'username': user.username,
-                        'email': user.email,
-                        'first_name': user.first_name or '',
-                        'last_name': user.last_name or ''
-                    }
-                })
-                response.status_code = 201  # Created
-                
-        except json.JSONDecodeError:
-            response = JsonResponse(
-                {'status': 'error', 'message': 'Invalid JSON data'}, 
-                status=400
-            )
-        except Exception as e:
-            logger.error(f"[Register] Error during registration: {str(e)}")
-            response = JsonResponse(
-                {'status': 'error', 'message': 'An error occurred during registration'}, 
-                status=500
-            )
-    
-    # Add CORS headers
+def add_cors_headers(response, request):
+    """Add CORS headers to response"""
     origin = request.headers.get('Origin', '')
-    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+    allowed_origins = [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'https://email-automate-1-1hwv.onrender.com',
+    ]
     
-    if origin in allowed_origins or settings.DEBUG:
+    # Check if the origin is allowed
+    if any(origin.startswith(allowed) for allowed in allowed_origins):
         response['Access-Control-Allow-Origin'] = origin
         response['Access-Control-Allow-Credentials'] = 'true'
-        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
-        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
-        response['Vary'] = 'Origin, Cookie'
+        response['Vary'] = 'Origin'
     
-    try:
-        return response
-    except Exception as e:
-        return JsonResponse(
-            {'error': str(e)}, 
-            status=500
-        )
+    return response
 
-@require_http_methods(["POST"])
-def login_view(request):
-    try:
-        # Debugging request body
-        print(f"[DEBUG] Raw body: {repr(request.body)}")
-        print(f"[DEBUG] Content-Length: {request.META.get('CONTENT_LENGTH')}")
-        print(f"[DEBUG] Content-Type: {request.META.get('CONTENT_TYPE')}")
-        print(f"[DEBUG] Request method: {request.method}")
-        print(f"[DEBUG] Request headers: {dict(request.headers)}")
+@method_decorator(csrf_exempt, name='dispatch')
+class RegisterView(generics.CreateAPIView):
+    serializer_class = UserRegistrationSerializer
+    permission_classes = [AllowAny]  # No authentication required for registration
+
+    def post(self, request, *args, **kwargs):
+        logger.debug("RegisterView called for registration request")
+        logger.debug(f"Request method: {request.method}")
+        logger.debug(f"Request path: {request.path}")
+        logger.debug(f"Request headers: {dict(request.headers)}")
         
-        # Log to file
-        logger.debug(f"[Login] Raw body: {repr(request.body)}")
-        logger.debug(f"[Login] Content-Length: {request.META.get('CONTENT_LENGTH')}")
-        logger.debug(f"[Login] Request method: {request.method}")
-        logger.debug(f"[Login] Request headers: {dict(request.headers)}")
-        logger.debug(f"[Login] Request META: { {k: v for k, v in request.META.items() if k.startswith('HTTP_')} }")
-        
-        # Get CSRF token from cookie if it exists
-        csrf_token = request.COOKIES.get('csrftoken')
-        
-        # Handle empty body
-        if not request.body or request.body == b'':
-            error_msg = 'Empty request body received'
-            print(f"[ERROR] {error_msg}")
-            logger.error(error_msg)
-            return JsonResponse(
-                {'error': error_msg, 'details': 'The server received an empty request body'}, 
-                status=400
-            )
-        
-        # Try to parse JSON
-        try:
-            body_str = request.body.decode('utf-8')
-            print(f"[DEBUG] Decoded body string: {body_str[:200]}...")
-            data = json.loads(body_str)
-        except UnicodeDecodeError as e:
-            error_msg = f'Invalid request encoding: {str(e)}'
-            print(f"[ERROR] {error_msg}")
-            logger.error(error_msg)
-            return JsonResponse(
-                {'error': 'Invalid request encoding', 'details': str(e)}, 
-                status=400
-            )
-        except json.JSONDecodeError as e:
-            error_msg = f'Invalid JSON: {str(e)}'
-            print(f"[ERROR] {error_msg}")
-            print(f"[DEBUG] Problematic JSON: {body_str[:200]}...")
-            logger.error(f"{error_msg}\nProblematic JSON: {body_str[:200]}...")
-            return JsonResponse(
-                {'error': 'Invalid JSON format', 'details': str(e)}, 
-                status=400
-            )
-        
-        # Get credentials
-        username = data.get('username')
-        password = data.get('password')
-        
-        # Validate credentials
-        if not username or not password:
-            logger.error("[Login] Missing username or password")
-            return JsonResponse(
-                {'error': 'Username and password are required'}, 
-                status=400
-            )
-        
-        # Authenticate user
-        user = authenticate(request, username=username, password=password)
-        
-        if user is not None:
-            # Log the user in
-            login(request, user)
-            logger.info(f"[Login] User authenticated: {user.username}")
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            logger.debug(f"Registration successful for user: {user.username}")
             
-            # Create response with complete user data
+            # Generate JWT tokens for the new user
+            refresh = RefreshToken.for_user(user)
+            access_token = refresh.access_token
+            
             response_data = {
-                'status': 'success',
-                'message': 'Login successful',
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'email': user.email,
-                    'first_name': user.first_name or '',
-                    'last_name': user.last_name or ''
+                "detail": "Registration successful. Please log in.",
+                "access_token": str(access_token),
+                "refresh_token": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
                 }
             }
             
-            response = JsonResponse(response_data)
-            
-            # Get or create CSRF token (use existing one if available)
-            csrf_token = request.META.get('CSRF_COOKIE')
-            if not csrf_token:
-                csrf_token = get_token(request)
-            
-            # Add CSRF token to response headers
-            response['X-CSRFToken'] = csrf_token
-            
-            # Add CORS headers
-            origin = request.headers.get('Origin', '')
-            allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
-            
-            if origin in allowed_origins or settings.DEBUG:
-                response['Access-Control-Allow-Origin'] = origin
-                response['Access-Control-Allow-Credentials'] = 'true'
-                response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-                response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
-                response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
-                response['Vary'] = 'Origin, Cookie'
-            
-            # Set CSRF cookie with same attributes as in get_csrf_token view
-            is_secure = request.is_secure()
-            response.set_cookie(
-                'csrftoken',
-                csrf_token,
-                max_age=60 * 60 * 24 * 7,  # 1 week
-                domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and not settings.DEBUG else None,
-                path='/',
-                secure=is_secure,
-                httponly=False,  # Must be False to be accessible via JavaScript
-                samesite='None' if is_secure else 'Lax'
-            )
-            
-            # Log response
-            log_response(response, "[Login Success] ")
-            return response
-            
-        logger.warning(f"[Login] Invalid credentials for user: {username}")
-        return JsonResponse(
-            {'error': 'Invalid credentials'}, 
-            status=400
-        )
+            response = Response(response_data, status=status.HTTP_201_CREATED)
+            return add_cors_headers(response, request)
         
-    except Exception as e:
-        logger.exception("[Login] Unexpected error:")
-        return JsonResponse(
-            {'error': 'An error occurred during login'}, 
-            status=500
-        )
+        logger.debug(f"Registration failed: {serializer.errors}")
+        response = Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return add_cors_headers(response, request)
 
-@csrf_exempt
-@require_http_methods(["POST", "OPTIONS"])
-def logout_view(request):
-    logger.info("[Logout] Processing logout request")
-    
-    # Handle OPTIONS preflight
-    if request.method == 'OPTIONS':
-        response = JsonResponse({}, status=200)
-    else:
-        # Clear the session and log the user out
-        if hasattr(request, 'session') and hasattr(request, 'user'):
-            # Flush the session completely
-            request.session.flush()
-            logger.info(f"[Logout] Session flushed for user: {request.user}")
-        
-        # Call Django's logout to clean up
-        logout(request)
-        
-        # Create response with success message
-        response = JsonResponse({'status': 'success', 'message': 'Successfully logged out'})
-        
-        # Clear all session cookies
-        response.delete_cookie('sessionid')
-        response.delete_cookie('csrftoken')
-        
-        # Add cache control headers to prevent caching
-        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        response['Pragma'] = 'no-cache'
-        response['Expires'] = '0'
-    
-    # Add CORS headers
-    origin = request.headers.get('Origin', '')
-    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
-    
-    if origin in allowed_origins or settings.DEBUG:
-        response['Access-Control-Allow-Origin'] = origin
-        response['Access-Control-Allow-Credentials'] = 'true'
-        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma, Expires'
-        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
-        response['Vary'] = 'Origin, Cookie'
-    
-    return response
+@method_decorator(csrf_exempt, name='dispatch')
+class LoginView(APIView):
+    permission_classes = [AllowAny]  # No authentication required for login
 
-@csrf_exempt
-@require_http_methods(["GET", "OPTIONS"])
-def csrf(request):
-    """Get CSRF token with detailed logging"""
-    log_request(request, "[CSRF] ")
-    
-    # Handle OPTIONS preflight
-    if request.method == 'OPTIONS':
-        response = JsonResponse({}, status=200)
-    else:
-        # Get the CSRF token
-        csrf_token = get_token(request)
+    def post(self, request, *args, **kwargs):
+        logger.debug("LoginView called")
+        logger.debug(f"Request method: {request.method}")
+        logger.debug(f"Request path: {request.path}")
+        logger.debug(f"Request headers: {dict(request.headers)}")
         
-        # Prepare the response with consistent format
-        response_data = {
-            'status': 'success',
-            'message': 'CSRF token generated successfully',
-            'csrfToken': csrf_token
-        }
+        username = request.data.get('username')
+        password = request.data.get('password')
         
-        response = JsonResponse(response_data)
-        
-        # Set the CSRF cookie with secure settings
-        is_secure = request.is_secure()
-        cookie_kwargs = {
-            'key': 'csrftoken',
-            'value': csrf_token,
-            'max_age': 60 * 60 * 24 * 7,  # 1 week
-            'secure': is_secure,
-            'httponly': False,  # Must be accessible from JavaScript
-            'samesite': 'None' if is_secure else 'Lax'
-        }
-        
-        # Only set domain in production
-        if not settings.DEBUG and hasattr(settings, 'CSRF_COOKIE_DOMAIN') and settings.CSRF_COOKIE_DOMAIN:
-            cookie_kwargs['domain'] = settings.CSRF_COOKIE_DOMAIN
+        user = authenticate(request, username=username, password=password)
+        if user is not None and user.is_active:
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+            access_token = refresh.access_token
             
-        response.set_cookie(**cookie_kwargs)
-        
-        # Log the response before sending
-        log_response(response, "[CSRF] ")
-        logger.debug(f"[CSRF] Setting CSRF cookie. Secure: {is_secure}")
-        logger.debug(f"[CSRF] Session ID in request: {request.session.session_key}")
-    
-    # Add CORS headers
-    origin = request.headers.get('Origin', '')
-    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
-    
-    if origin in allowed_origins or settings.DEBUG:
-        response['Access-Control-Allow-Origin'] = origin
-        response['Access-Control-Allow-Credentials'] = 'true'
-        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
-        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
-        response['Vary'] = 'Origin, Cookie'
-    
-    return response
-
-@csrf_exempt
-@require_http_methods(["GET", "OPTIONS"])
-def session_view(request):
-    """Check session status with detailed logging"""
-    log_request(request, "[SESSION] ")
-    
-    # Handle OPTIONS preflight
-    if request.method == 'OPTIONS':
-        response = JsonResponse({}, status=200)
-    elif not request.user.is_authenticated:
-        logger.debug("[SESSION] User not authenticated")
-        response = JsonResponse({'isAuthenticated': False})
-    else:
-        logger.debug(f"[SESSION] User authenticated: {request.user.username}")
-        response = JsonResponse({
-            'isAuthenticated': True,
-            'user': {
-                'id': request.user.id,
-                'username': request.user.username,
-                'email': request.user.email,
-                'first_name': request.user.first_name or '',
-                'last_name': request.user.last_name or ''
+            logger.debug(f"Login successful for user: {username}")
+            logger.debug(f"Generated JWT tokens for user: {username}")
+            
+            response_data = {
+                "detail": "Successfully logged in.",
+                "access_token": str(access_token),
+                "refresh_token": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "first_name": user.first_name or '',
+                    "last_name": user.last_name or ''
+                }
             }
-        })
-    
-    # Add CORS headers
-    origin = request.headers.get('Origin', '')
-    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
-    
-    if origin in allowed_origins or settings.DEBUG:
-        response['Access-Control-Allow-Origin'] = origin
-        response['Access-Control-Allow-Credentials'] = 'true'
-        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Authorization, Cache-Control, Pragma'
-        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
-        response['Vary'] = 'Origin, Cookie'
-    
-    # Log the response
-    log_response(response, "[SESSION] ")
-    return response
+            
+            response = Response(response_data)
+            return add_cors_headers(response, request)
+        
+        logger.debug(f"Login failed for username: {username}")
+        response = Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
+        return add_cors_headers(response, request)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class LogoutView(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            # Blacklist the refresh token if provided
+            refresh_token = request.data.get('refresh_token')
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+                logger.debug("Refresh token blacklisted")
+            
+            response = Response({"detail": "Successfully logged out."})
+            return add_cors_headers(response, request)
+        except Exception as e:
+            logger.error(f"Logout error: {str(e)}")
+            response = Response({"detail": "Logout successful."})
+            return add_cors_headers(response, request)
 
 @csrf_exempt
 @require_http_methods(["GET", "OPTIONS"])
@@ -423,8 +169,9 @@ def user_view(request):
     # Get the origin from the request
     origin = request.headers.get('Origin', '')
     allowed_origins = [
+        'http://localhost:3000',
+        'http://localhost:5173',
         'https://email-automate-1-1hwv.onrender.com',
-        'https://email-automate-ob1a.onrender.com'
     ]
     
     # Check if the origin is allowed
@@ -436,7 +183,7 @@ def user_view(request):
         if is_allowed_origin:
             response['Access-Control-Allow-Origin'] = origin
             response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRFToken, X-Requested-With, Accept, Cache-Control, Pragma'
+            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Cache-Control, Pragma'
             response['Access-Control-Allow-Credentials'] = 'true'
             response['Access-Control-Max-Age'] = '86400'
             response['Vary'] = 'Origin'
@@ -464,9 +211,9 @@ def user_view(request):
             return response
             
         except Exception as e:
-            logger.error(f'Error in user_view: {str(e)}', exc_info=True)
+            logger.error(f"Error in user_view: {str(e)}")
             response = JsonResponse(
-                {'status': 'error', 'message': 'An error occurred'},
+                {'status': 'error', 'message': 'Failed to get user data'},
                 status=500
             )
             if is_allowed_origin:

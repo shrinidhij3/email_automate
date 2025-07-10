@@ -3,7 +3,9 @@ import type { ChangeEvent } from "react";
 import axios from "axios";
 import "./EmailConfigForm.css";
 import { ENDPOINTS, API_BASE_URL } from "../config/api";
-import { getCSRFToken } from "../services/authService";
+// NOTE: CSRF token handling is now managed globally via the shared api instance in src/api/api.ts
+// Remove all imports and usage of getCSRFToken from services/authService.
+import api from '../api/api'; // Import the shared api instance
 
 // Configure axios defaults for CORS
 axios.defaults.withCredentials = true;
@@ -182,53 +184,32 @@ const EmailConfigForm: React.FC = () => {
         password: formData.password ? "***" : "not provided",
       });
 
-      // Fetch CSRF token using the auth service
-      const csrfToken = await getCSRFToken();
-      if (!csrfToken) {
-        throw new Error('Failed to get CSRF token');
-      }
-
-      // Prepare form data
-      const formDataToSend = new FormData();
-      formDataToSend.append("name", formData.name);
-      formDataToSend.append("email", formData.email);
-      formDataToSend.append("password", formData.password);
-
-      const providerValue =
-        formData.provider === "other" && formData.customProvider
+      // Prepare form data as JSON instead of FormData
+      const jsonData = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        provider: formData.provider === "other" && formData.customProvider
           ? formData.customProvider
-          : formData.provider;
-      formDataToSend.append("provider", providerValue);
-
-      formDataToSend.append("imap_host", formData.imapHost);
-      formDataToSend.append("imap_port", formData.imapPort);
-      formDataToSend.append("smtp_host", formData.smtpHost);
-      formDataToSend.append("smtp_port", formData.smtpPort);
-      formDataToSend.append("secure", formData.useSecure.toString());
-      formDataToSend.append("use_ssl", formData.useSsl.toString());
-      formDataToSend.append("notes", formData.notes || "");
+          : formData.provider,
+        imap_host: formData.imapHost,
+        imap_port: formData.imapPort,
+        smtp_host: formData.smtpHost,
+        smtp_port: formData.smtpPort,
+        secure: formData.useSecure,
+        use_ssl: formData.useSsl,
+        notes: formData.notes || ""
+      };
 
       // Try to submit the form (but don't fail if it doesn't work)
       let submissionId = null;
       try {
-        // Use the correct API endpoint from config
-        const endpoint = `${API_BASE_URL}${ENDPOINTS.CAMPAIGNS.BASE}`;
+        // Use the correct API endpoint for email submissions (unread-emails, not campaigns)
+        const endpoint = `${API_BASE_URL}${ENDPOINTS.UNREAD_EMAILS.SUBMISSIONS}`;
         console.log("Attempting to submit to:", endpoint);
+        console.log("Sending JSON data:", { ...jsonData, password: "***" });
         
-        const config = {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            "X-CSRFToken": csrfToken,
-            "X-Requested-With": "XMLHttpRequest",
-            Accept: "application/json"
-          },
-          withCredentials: true,
-          timeout: 30000,
-          xsrfCookieName: "csrftoken",
-          xsrfHeaderName: "X-CSRFToken"
-        };
-
-        const response = await axios.post(endpoint, formDataToSend, config);
+        const response = await api.post(endpoint, jsonData);
         console.log(
           "Form submission response:",
           response.status,
@@ -254,21 +235,13 @@ const EmailConfigForm: React.FC = () => {
               // Use 'file' as the field name to match backend expectations
               fileFormData.append("file", file);
 
-              // Use the correct campaign upload endpoint
+              // Use the correct unread-emails upload endpoint
               const uploadUrl = new URL(
-                ENDPOINTS.CAMPAIGNS.UPLOAD_ATTACHMENTS(submissionId.toString()),
+                ENDPOINTS.UNREAD_EMAILS.UPLOAD_ATTACHMENT(submissionId.toString()),
                 API_BASE_URL
               ).toString();
 
-              await axios.post(uploadUrl, fileFormData, {
-                headers: {
-                  "Content-Type": "multipart/form-data",
-                  "X-CSRFToken": csrfToken,
-                  "X-Requested-With": "XMLHttpRequest"
-                },
-                withCredentials: true,
-                timeout: 120000 // 2 minutes
-              });
+              await api.post(uploadUrl, fileFormData);
 
               console.log(`File upload attempted for ${file.name}`);
             } catch (uploadError) {

@@ -6,98 +6,16 @@ from rest_framework.parsers import MultiPartParser, JSONParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.http import FileResponse, JsonResponse
-from django.middleware.csrf import get_token
-
-from campaigns.models import EmailCampaign, CampaignEmailAttachment
-from .serializers import EmailCampaignSerializer, CampaignEmailAttachmentSerializer
-
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.decorators import api_view, permission_classes
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-from django.middleware.csrf import get_token
-from django.views.decorators.http import require_http_methods
-from django.conf import settings
-from django.http import JsonResponse
 from django.contrib.auth import get_user_model
 import logging
 import json
+from campaigns.models import EmailCampaign, CampaignEmailAttachment
+from .serializers import EmailCampaignSerializer, CampaignEmailAttachmentSerializer
 
 logger = logging.getLogger(__name__)
 
-@api_view(['GET', 'OPTIONS'])
-@permission_classes([AllowAny])
-@require_http_methods(["GET", "OPTIONS"])
-@ensure_csrf_cookie
-def get_csrf_token(request):
-    """
-    View to get CSRF token with proper CORS headers.
-    This endpoint is used by the frontend to get a CSRF token for API requests.
-    """
-    try:
-        # For OPTIONS requests, just return the CORS headers
-        if request.method == 'OPTIONS':
-            response = JsonResponse({}, status=200)
-        else:
-            # Get or create CSRF token
-            token = get_token(request)
-            response = JsonResponse({
-                'status': 'success',
-                'message': 'CSRF token retrieved successfully',
-                'csrfToken': token
-            })
-
-        # Get the origin from the request
-        origin = request.META.get('HTTP_ORIGIN', '')
-        
-        # Get allowed origins from settings
-        allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
-        
-        # Set CORS headers
-        if origin in allowed_origins or settings.DEBUG:
-            response['Access-Control-Allow-Origin'] = origin
-            response['Access-Control-Allow-Credentials'] = 'true'
-        
-        # Add CSRF token to headers
-        if request.method != 'OPTIONS':
-            response['X-CSRFToken'] = token
-        
-        # Add CORS headers
-        response['Access-Control-Allow-Headers'] = 'X-Requested-With, Content-Type, Accept, X-CSRFToken, Authorization, Cache-Control, Pragma'
-        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response['Access-Control-Max-Age'] = '86400'  # 24 hours
-        response['Access-Control-Expose-Headers'] = 'X-CSRFToken, Content-Length, Set-Cookie'
-        
-        # Add Vary header to prevent caching of CORS responses
-        response['Vary'] = 'Origin, Cookie'
-        
-        # Set cookie with secure flags
-        is_secure = request.is_secure()
-        if request.method != 'OPTIONS':
-            response.set_cookie(
-                key='csrftoken',
-                value=token,
-                max_age=60 * 60 * 24 * 7,  # 1 week
-                domain=settings.SESSION_COOKIE_DOMAIN if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and not settings.DEBUG else None,
-                path='/',
-                secure=is_secure,
-                httponly=False,  # Must be False to be accessible via JavaScript
-                samesite='None' if is_secure else 'Lax'
-            )      
-        logger.debug(f'CSRF token generated and set for origin: {origin}')
-        return response
-        
-    except Exception as e:
-        logger.error(f'Error generating CSRF token: {str(e)}', exc_info=True)
-        return JsonResponse(
-            {'status': 'error', 'message': 'Failed to generate CSRF token'},
-            status=500
-        )
-
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-@require_http_methods(["GET"])
+@permission_classes([permissions.IsAuthenticated])
 def get_current_user(request):
     """
     View to get current authenticated user details.
@@ -146,17 +64,12 @@ class EmailCampaignViewSet(
 ):
     """
     API endpoint for managing email campaigns.
-    """
-    permission_classes = [permissions.IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
-    serializer_class = EmailCampaignSerializer
-    """
-    API endpoint that allows email campaigns to be viewed or edited.
     Supports file uploads and handles provider-specific configurations.
     """
     queryset = EmailCampaign.objects.all()
     serializer_class = EmailCampaignSerializer
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_queryset(self):
         """
@@ -170,13 +83,6 @@ class EmailCampaignViewSet(
         # Simple check if email exists in the table
         exists = EmailCampaign.objects.filter(email__iexact=email).exists()
         return EmailCampaign.objects.filter(pk=-1) if not exists else EmailCampaign.objects.filter(email__iexact=email)
-
-    def perform_create(self, serializer):
-        """Set the created_by field to the current user."""
-        if self.request.user.is_authenticated:
-            serializer.save(created_by=self.request.user)
-        else:
-            serializer.save()  # This will use the default (null for created_by)
 
     def _validate_file(self, file):
         """Validate file size and type."""
@@ -210,11 +116,11 @@ class EmailCampaignViewSet(
             
             # Handle provider-specific configurations
             provider = data.get('provider')
-            if provider and provider != 'custom':
-                provider_config = PROVIDER_CONFIGS.get(provider, {})
-                for field in ['smtp_host', 'smtp_port', 'use_ssl']:
-                    if field in provider_config and not data.get(field):
-                        data[field] = provider_config[field]
+            # if provider and provider != 'custom':
+            #     provider_config = PROVIDER_CONFIGS.get(provider, {})
+            #     for field in ['smtp_host', 'smtp_port', 'use_ssl']:
+            #         if field in provider_config and not data.get(field):
+            #             data[field] = provider_config[field]
             
             # Ensure required fields are present
             if 'subject' not in data:

@@ -30,10 +30,9 @@ DATABASES = {
 # CORS settings for production
 CORS_ALLOW_CREDENTIALS = True
 
-# Allowed origins for CORS
+# Allowed origins for CORS - specifically for your frontend domain
 CORS_ALLOWED_ORIGINS = [
     'https://email-automate-1-1hwv.onrender.com',
-    'https://email-automate-ob1a.onrender.com',
 ]
 
 # Also allow environment variable override
@@ -61,46 +60,77 @@ CORS_ALLOW_HEADERS = [
     'authorization',
     'content-type',
     'dnt',
-    'expires',  # Adding expires header for cache control
+    'expires',
     'origin',
     'user-agent',
-    'x-csrftoken',
     'x-requested-with',
     'cache-control',
     'pragma',
+    'x-csrftoken',
 ]
 
 CORS_EXPOSE_HEADERS = [
     'Content-Type',
-    'X-CSRFToken',
     'Content-Length',
     'X-Requested-With',
+    'Authorization',
     'Set-Cookie',
 ]
 
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
-# CSRF settings for production - FIXED for cross-origin
-# CSRF trusted origins
+# CSRF settings for production
 CSRF_TRUSTED_ORIGINS = [
     'https://email-automate-1-1hwv.onrender.com',
     'https://email-automate-ob1a.onrender.com',
 ]
 
-# Also allow environment variable override
+# Add environment variable override for CSRF trusted origins
 env_csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
 if env_csrf_origins and env_csrf_origins[0]:
     CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in env_csrf_origins if origin.strip()])
 
-CSRF_COOKIE_SECURE = True  # True for production HTTPS
-CSRF_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
-CSRF_COOKIE_DOMAIN = os.getenv('CSRF_COOKIE_DOMAIN', '.onrender.com')
-CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
-CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
-CSRF_COOKIE_PATH = '/'
-CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 year
+# JWT Settings for production
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),  # Shorter for security
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    'JTI_CLAIM': 'jti',
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(hours=1),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),
+    # Cookie settings for JWT if using cookies
+    'ACCESS_TOKEN_COOKIE_NAME': 'access_token',
+    'REFRESH_TOKEN_COOKIE_NAME': 'refresh_token',
+    'ACCESS_TOKEN_COOKIE_SECURE': True,
+    'REFRESH_TOKEN_COOKIE_SECURE': True,
+    'ACCESS_TOKEN_COOKIE_HTTPONLY': True,
+    'REFRESH_TOKEN_COOKIE_HTTPONLY': True,
+    'ACCESS_TOKEN_COOKIE_SAMESITE': 'None',
+    'REFRESH_TOKEN_COOKIE_SAMESITE': 'None',
+    'ACCESS_TOKEN_COOKIE_DOMAIN': '.onrender.com',
+    'REFRESH_TOKEN_COOKIE_DOMAIN': '.onrender.com',
+}
 
-# Session settings for production - FIXED for cross-origin
+# Session settings for production - simplified for JWT
 SESSION_COOKIE_SECURE = True  # True for production HTTPS
 SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
 SESSION_COOKIE_DOMAIN = os.getenv('SESSION_COOKIE_DOMAIN', '.onrender.com')
@@ -142,7 +172,7 @@ AWS_S3_OBJECT_PARAMETERS = {
 # Storage settings for production
 STORAGES = {
     'default': {
-        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'BACKEND': 'em_store.storage_backends.R2MediaStorage',
     },
     'staticfiles': {
         'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
@@ -151,14 +181,14 @@ STORAGES = {
 
 # Media files configuration for production - with fallback to local storage
 if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
-    # Use S3/R2 for storage if credentials are available
-    MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.dev/'
+    # Use R2 for storage if credentials are available
+    MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com/'
     if os.getenv('AWS_S3_CUSTOM_DOMAIN'):
         MEDIA_URL = f'https://{os.getenv("AWS_S3_CUSTOM_DOMAIN")}/'
     
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    DEFAULT_FILE_STORAGE = 'em_store.storage_backends.R2MediaStorage'
     STORAGES['default'] = {
-        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'BACKEND': 'em_store.storage_backends.R2MediaStorage',
     }
 else:
     # Fallback to local file system storage
@@ -203,6 +233,11 @@ LOGGING = {
             'propagate': True,
         },
         'corsheaders': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'auth_app': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,

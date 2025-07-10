@@ -26,8 +26,6 @@ export const ENDPOINTS = {
     LOGIN: "/api/auth/login/",
     REGISTER: "/api/auth/register/",
     LOGOUT: "/api/auth/logout/",
-    CSRF: "/api/auth/csrf-token/", // Updated to match backend
-    SESSION: "/api/auth/session/",
     USER: "/api/auth/user/",
   },
   UNREAD_EMAILS: {

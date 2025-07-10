@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import type { ChangeEvent, FormEvent, FC } from "react";
+import React, { useState, useEffect, FormEvent, ChangeEvent, FC, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { ENDPOINTS, API_BASE_URL } from "../config/api";
+import api from "../api/api";
 import "./EmailDashboard.css";
-import { API_BASE_URL, ENDPOINTS } from "../config/api";
 
 interface FormData {
   name: string;
@@ -28,140 +29,39 @@ interface CsvEntry {
   day_nine?: string | null;
 }
 
-// API base URL is imported from config/api
-
-// Function to get CSRF token from cookies
-const getCsrfToken = (): string | null => {
-  const cookieValue = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrftoken="))
-    ?.split("=")[1];
-  return cookieValue ? decodeURIComponent(cookieValue) : null;
-};
-
-// Function to get CSRF token from the server
-const fetchCsrfToken = async (): Promise<string | null> => {
-  try {
-    // Use the correct authentication endpoint for CSRF token
-    const response = await fetch(`${API_BASE_URL}${ENDPOINTS.AUTH.CSRF}`, {
-      method: "GET",
-      credentials: "include",
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.csrfToken || null;
-    }
-    return null;
-  } catch (error) {
-    console.error("Error fetching CSRF token:", error);
-    return null;
-  }
-};
-
 const EmailDashboard: FC = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuth();
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     client_email: "",
   });
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isSubmittingSingle, setIsSubmittingSingle] = useState(false);
   const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
   const [message, setMessage] = useState<Message>({ text: "", type: "" });
-  const navigate = useNavigate();
 
-  // Fetch CSRF token on component mount
   useEffect(() => {
-    const initializeCsrfToken = async () => {
-      // First try to get from cookies
-      let token = getCsrfToken();
-
-      if (!token) {
-        // If not in cookies, fetch from the server
-        token = await fetchCsrfToken();
-      }
-
-      if (token) {
-        setCsrfToken(token);
-      } else {
-        console.warn("Could not retrieve CSRF token");
-      }
-    };
-
-    initializeCsrfToken();
-
-    // Set up a timer to refresh the CSRF token every 30 minutes
-    const tokenRefreshInterval = setInterval(() => {
-      fetchCsrfToken().then((token) => {
-        if (token) {
-          setCsrfToken(token);
+    if (!isAuthenticated || isLoading) return;
+    
+    // Check if user has campaigns
+    api.get("/api/campaigns/check_user_campaigns/")
+      .then((response: any) => {
+        if (response.data.has_campaigns) {
+          // User has campaigns, stay on dashboard
+          console.log("User has campaigns, staying on dashboard");
+        } else {
+          // User has no campaigns, redirect to campaign creation
+          navigate("/create-campaign");
         }
+      })
+      .catch((error: any) => {
+        console.error("Error checking campaigns:", error);
+        // If error, redirect to campaign creation
+        navigate("/create-campaign");
       });
-    }, 30 * 60 * 1000); // 30 minutes
-
-    return () => clearInterval(tokenRefreshInterval);
-  }, []);
-
-  // Helper function to make authenticated requests with CSRF token
-  const makeRequest = async (url: string, options: RequestInit = {}) => {
-    console.log("Making request to:", url);
-    console.log("Request options:", {
-      method: options.method,
-      headers: options.headers,
-      body: options.body,
-    });
-
-    // Ensure we have a CSRF token
-    let token = csrfToken;
-    if (!token) {
-      token = await fetchCsrfToken();
-      if (token) {
-        setCsrfToken(token);
-      }
-    }
-
-    const headers = new Headers({
-      Accept: "application/json",
-      ...(options.method !== "GET" && { "X-CSRFToken": token || "" }),
-      ...((options.headers as Record<string, string>) || {}),
-    });
-
-    // Only set Content-Type for non-form-data requests
-    if (!(options.body instanceof FormData)) {
-      headers.set("Content-Type", "application/json");
-    }
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: "include",
-        mode: "cors",
-      });
-
-      console.log("Response status:", response.status, response.statusText);
-      console.log(
-        "Response headers:",
-        Object.fromEntries(response.headers.entries())
-      );
-
-      // Clone the response to read it for logging
-      const responseClone = response.clone();
-      try {
-        const data = await responseClone.json();
-        console.log("Response data:", data);
-      } catch (e) {
-        console.log("No JSON response body");
-      }
-
-      return response;
-    } catch (error) {
-      console.error("Request failed:", error);
-      throw error;
-    }
-  };
+  }, [isAuthenticated, isLoading, navigate]);
 
   const showMessage = (text: string, type: "success" | "error" | "") => {
     setMessage({ text, type });
@@ -205,24 +105,15 @@ const EmailDashboard: FC = () => {
       console.log("Sending request to:", API_BASE_URL);
       console.log("Request data:", data);
 
-      const response = await makeRequest(`${API_BASE_URL}${ENDPOINTS.EMAIL_ENTRIES}`, {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        credentials: "include",
-      });
+      const response = await api.post(`${ENDPOINTS.EMAIL_ENTRIES}`, data);
 
       console.log("Response status:", response.status);
-      const responseData = await response.json().catch(() => ({}));
-      console.log("Response data:", responseData);
+      console.log("Response data:", response.data);
 
       if (response.status === 409) {
         // Duplicate email
         showMessage(`The email ${email} is already registered.`, "error");
-      } else if (response.ok) {
+      } else if (response.status >= 200 && response.status < 300) {
         showMessage("Email submitted successfully!", "success");
         setFormData({ name: "", email: "", client_email: "" });
         // Redirect to dashboard after a short delay to show success message
@@ -231,35 +122,35 @@ const EmailDashboard: FC = () => {
         }, 1000);
       } else {
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        if (responseData) {
+        if (response.data) {
           errorMessage =
-            responseData.error ||
-            responseData.detail ||
-            responseData.message ||
-            Object.entries(responseData)
+            response.data.error ||
+            response.data.detail ||
+            response.data.message ||
+            Object.entries(response.data)
               .map(([key, value]) => `${key}: ${value}`)
               .filter((_, i) => i < 3) // Limit to first 3 errors
               .join("\n") ||
-            JSON.stringify(responseData);
+            JSON.stringify(response.data);
         }
         console.error("Server error:", errorMessage);
         throw new Error(errorMessage);
       }
-    } catch (error: unknown) {
+    } catch (_error: unknown) {
       let errorMessage = "An unknown error occurred";
 
-      if (error instanceof Error) {
-        errorMessage = error.message;
+      if (_error instanceof Error) {
+        errorMessage = _error.message;
         console.error("Error details:", {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
+          name: _error.name,
+          message: _error.message,
+          stack: _error.stack,
         });
-      } else if (typeof error === "string") {
-        errorMessage = error;
-        console.error("Error:", error);
+      } else if (typeof _error === "string") {
+        errorMessage = _error;
+        console.error("Error:", _error);
       } else {
-        console.error("Unexpected error type:", error);
+        console.error("Unexpected error type:", _error);
       }
 
       setMessage({
@@ -332,12 +223,14 @@ const EmailDashboard: FC = () => {
 
   const handleBulkSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
     if (!csvFile) {
       showMessage("Please select a CSV file", "error");
       return;
     }
-
+    if (!isAuthenticated && !isLoading) {
+      navigate('/login');
+      return;
+    }
     setIsSubmittingBulk(true);
 
     const reader = new FileReader();
@@ -349,25 +242,13 @@ const EmailDashboard: FC = () => {
 
         console.log("Sending bulk request with entries:", entries);
 
-        // Get CSRF token
-        const token = await fetchCsrfToken();
-        if (!token) {
-          throw new Error("Failed to get CSRF token");
+        // Send the processed entries directly to the API
+        const response = await api.post(`${ENDPOINTS.EMAIL_ENTRIES}`, entries);
+
+        if (response.status === 401 || response.status === 403) {
+          navigate('/login');
+          return;
         }
-
-        // Create FormData for file upload
-        const formData = new FormData();
-        formData.append('file', csvFile);
-
-        // Send the request with proper headers
-        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.EMAIL_ENTRIES}bulk/`, {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-          headers: {
-            'X-CSRFToken': token,
-          },
-        });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));

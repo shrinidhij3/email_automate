@@ -1,19 +1,9 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar: React.FC = () => {
-  const { isAuthenticated, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/');
-    } catch (error) {
-      console.error('Failed to log out', error);
-    }
-  };
+  const { logout, isAuthenticated } = useAuth();
 
   return (
     <nav className="navbar">
@@ -27,9 +17,11 @@ const Navbar: React.FC = () => {
           <>
             <Link to="/dashboard/upload" className="nav-link">Create Campaign</Link>
             <Link to="/unread-emails" className="nav-link">Unread Emails</Link>
-            <button onClick={handleLogout} className="btn btn-link nav-link">
-              Logout
-            </button>
+            {isAuthenticated && (
+              <button className="logout-btn" onClick={logout} style={{ marginLeft: '1rem' }}>
+                Logout
+              </button>
+            )}
           </>
         ) : (
           <>

@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import axios from "axios";
 import type { AxiosProgressEvent } from "axios";
 import "./UnreadEmailsDashboard.css";
+import api from '../api/api'; // Import the shared api instance
 
 interface EmailFormData {
   name: string;
@@ -95,7 +96,7 @@ const UnreadEmailsDashboard = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  // Removed unused csrfToken state
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Refs and constants
@@ -113,39 +114,8 @@ const UnreadEmailsDashboard = () => {
     };
   }, []);
 
-  // Fetch CSRF token on component mount
-  useEffect(() => {
-    const fetchCsrf = async () => {
-      try {
-        console.log("Fetching CSRF token...");
-        const response = await axios.get(`${AUTH_BASE_URL}csrf/`, {
-          withCredentials: true,
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        if (response.data.csrfToken) {
-          setCsrfToken(response.data.csrfToken);
-          axios.defaults.headers.common["X-CSRFToken"] =
-            response.data.csrfToken;
-        }
-      } catch (error) {
-        console.error("Error fetching CSRF token:", error);
-      }
-    };
-
-    fetchCsrf();
-  }, []);
-
-  // Get CSRF token from cookies
-  const getCsrfToken = (): string | null => {
-    const cookieValue = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("csrftoken="))
-      ?.split("=")[1];
-    return cookieValue || null;
-  };
+  // NOTE: CSRF token handling is now managed globally via the shared api instance in src/api/api.ts
+  // Remove all custom CSRF token fetching and header logic.
 
   // Handle custom provider change
   const handleCustomProviderChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -284,12 +254,6 @@ const UnreadEmailsDashboard = () => {
     setIsSubmitting(true);
 
     try {
-      // Ensure we have a CSRF token
-      const currentCsrfToken = csrfToken || getCsrfToken();
-      if (!currentCsrfToken) {
-        throw new Error("CSRF token not found");
-      }
-
       // Create FormData for the request
       const formDataObj = new FormData();
 
@@ -308,13 +272,12 @@ const UnreadEmailsDashboard = () => {
       }
 
       // Submit the form data
-      const response = await axios.post(
+      const response = await api.post(
         `${API_BASE_URL}unread-emails/submissions/`,
         formDataObj,
         {
           headers: {
             "Content-Type": "multipart/form-data",
-            "X-CSRFToken": currentCsrfToken,
           },
           withCredentials: true,
         }
@@ -346,10 +309,9 @@ const UnreadEmailsDashboard = () => {
                 `Uploading ${file.name} (${(file.size / 1024).toFixed(2)} KB)`
               );
 
-              const uploadResponse = await axios.post(uploadUrl, fileFormData, {
+              const uploadResponse = await api.post(uploadUrl, fileFormData, {
                 headers: {
                   "Content-Type": "multipart/form-data",
-                  "X-CSRFToken": currentCsrfToken,
                 },
                 withCredentials: true,
                 onUploadProgress: (progressEvent: AxiosProgressEvent) => {

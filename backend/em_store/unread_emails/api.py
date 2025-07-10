@@ -1,10 +1,8 @@
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
 from .models import UnreadEmail
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def save_email_config(request):
     try:

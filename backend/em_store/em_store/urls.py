@@ -32,7 +32,7 @@ from .views import DebugURLsView, TestAdminView, landing_page
 from unread_emails.views import AdminSubmissionListView
 
 # API imports
-from api.views import get_csrf_token, get_current_user
+from api.views import get_current_user
 
 # Schema view for API documentation
 schema_view = get_schema_view(
@@ -62,14 +62,10 @@ urlpatterns = [
     # Admin submissions page - using a non-conflicting path
     path('submissions/admin/', AdminSubmissionListView.as_view(), name='admin-submissions'),
     
-    # Redirect root to API documentation
-    path('', RedirectView.as_view(url='/api/docs/', permanent=False), name='home'),
-    
     # Authentication endpoints - all under /api/auth/
     path('api/auth/', include('auth_app.urls')),
     
     # API endpoints
-    path('api/accounts/', include('accounts.urls')),  # User accounts API
     path('api/email-entries/', include('email_entry.urls')),  # Email entries API
     path('api/unread-emails/', include('unread_emails.urls')),  # Unread emails API
     path('api/campaigns/', include('campaigns.urls')),  # Email campaigns API
@@ -78,9 +74,6 @@ urlpatterns = [
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-    
-    # Standardized CSRF token endpoint
-    path('api/auth/csrf-token/', get_csrf_token, name='get_csrf_token'),
     
     # Include API app URLs (keep this last to avoid overriding other routes)
     path('api/', include('api.urls')),

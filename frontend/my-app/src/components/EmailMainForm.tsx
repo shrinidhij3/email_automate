@@ -1,82 +1,8 @@
 import { useState, useEffect } from "react";
 import "./EmailMain.css";
-import axios from "axios";
-import type { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
-import { API_BASE_URL } from "../config/api";
-import { fetchCSRFToken } from "../utils/csrf";
-
-// Create axios instance with base URL and CSRF configuration
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-    "X-Requested-With": "XMLHttpRequest"
-  },
-  xsrfCookieName: 'csrftoken',
-  xsrfHeaderName: 'X-CSRFToken'
-});
-
-// Request interceptor for logging
-api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    // Skip logging for GET requests or CSRF endpoint
-    if (config.method?.toLowerCase() !== 'get' && !config.url?.includes('csrf-token')) {
-      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
-        data: config.data,
-        headers: config.headers
-      });
-    }
-    return config;
-  },
-  (error) => {
-    console.error('Request error:', error);
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 403) {
-      console.error('403 Forbidden - Possible CSRF token mismatch');
-      // Optionally try to refresh the CSRF token and retry
-      try {
-        await fetchCSRFToken();
-        return api(error.config);
-      } catch (refreshError) {
-        console.error('Failed to refresh CSRF token:', refreshError);
-        window.location.href = '/login';  // Redirect to login on failure
-      }
-    }
-    return Promise.reject(error);
-  }
-);
-
-
-// Response interceptor for handling errors
-api.interceptors.response.use(
-  (response: AxiosResponse) => response,
-  async (error: AxiosError) => {
-    console.error('API Error:', {
-      message: error.message,
-      status: error.response?.status,
-      url: error.config?.url,
-      method: error.config?.method,
-    });
-
-    // Handle 403 Forbidden (CSRF token might be invalid)
-    if (error.response?.status === 403) {
-      console.error('[AUTH] Authentication failed. Please log in again.');
-      // Uncomment to enable auto-redirect to login
-      // window.location.href = '/login';
-    }
-
-    return Promise.reject(error);
-  }
-);
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import api from "../api/api";
 
 interface ProviderConfig {
   imapHost: string;
@@ -125,8 +51,6 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   },
 };
 
-// Error handling is done through the error state and form validation
-
 function EmailMainForm() {
   const [formData, setFormData] = useState<EmailConfig>({
     name: "",
@@ -150,9 +74,12 @@ function EmailMainForm() {
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [isUploadingFiles, setIsUploadingFiles] = useState<boolean>(false);
   const totalSteps = 3;
   
   const isCustomProvider = formData.provider === "other";
+  const { isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isCustomProvider) {
@@ -165,12 +92,10 @@ function EmailMainForm() {
         customProvider: "",
       }));
     }
-  }, [formData.provider, isCustomProvider, setFormData]);
+  }, [formData.provider, isCustomProvider]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type, checked } = e.target as HTMLInputElement;
     setFormData((prev) => ({
@@ -191,6 +116,7 @@ function EmailMainForm() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
+      setIsUploadingFiles(true);
       const newFiles = Array.from(e.target.files);
       setFormData((prev) => ({
         ...prev,
@@ -200,6 +126,8 @@ function EmailMainForm() {
         ...prev,
         ...newFiles.map((file: File) => file.name),
       ]);
+      // Reset upload state after a short delay
+      setTimeout(() => setIsUploadingFiles(false), 1000);
     }
   };
 
@@ -278,64 +206,116 @@ function EmailMainForm() {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     
+    console.log('=== FORM SUBMISSION STARTED ===');
+    console.log('Current step:', currentStep, 'Total steps:', totalSteps);
+    console.log('Is authenticated:', isAuthenticated, 'Is loading:', isLoading);
+    console.log('Is submitting:', isSubmitting);
+    console.log('Form data:', formData);
+    
+    // Prevent submission if not on last step
+    if (currentStep !== totalSteps) {
+      console.log('❌ Not on last step, preventing submission');
+      return;
+    }
+    
+    // Prevent submission if already submitting
+    if (isSubmitting) {
+      console.log('❌ Already submitting, preventing duplicate submission');
+      return;
+    }
+    
+    // Prevent submission if not authenticated
+    if (!isAuthenticated) {
+      console.log('❌ Not authenticated, preventing submission');
+      setErrorMessage('Please log in to submit a campaign');
+      return;
+    }
+    
+    // Prevent submission if still loading auth state
+    if (isLoading) {
+      console.log('❌ Still loading auth state, preventing submission');
+      setErrorMessage('Please wait while we verify your authentication...');
+      return;
+    }
+    
+    // Validate form
     if (!validateForm()) {
+      console.log('❌ Form validation failed');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     
+    console.log('✅ All checks passed, starting submission');
     setIsSubmitting(true);
     setErrorMessage('');
     
     try {
-      // Create the main campaign data (without files)
-      const campaignData = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        provider: isCustomProvider ? formData.customProvider : formData.provider,
-        imap_host: formData.imapHost,
-        imap_port: formData.imapPort ? parseInt(formData.imapPort, 10) : null,
-        smtp_host: formData.smtpHost,
-        smtp_port: formData.smtpPort ? parseInt(formData.smtpPort, 10) : null,
-        use_ssl: formData.useSsl,
-        notes: formData.notes || "",
-      };
-
-      console.log("Submitting campaign data:", {
-        ...campaignData,
-        password: '***', // Don't log the actual password
-      });
+      console.log('Preparing to submit campaign data...');
+      let apiResponse;
       
-      // Make the request using our configured api instance
-      const apiResponse = await api.post('/api/campaigns/', campaignData, {
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
+      if (formData.files && formData.files.length > 0) {
+        console.log('📁 Submitting with files:', formData.files.length, 'files');
+        // Use FormData for file uploads
+        const form = new FormData();
+        form.append('name', formData.name.trim());
+        form.append('email', formData.email.trim());
+        form.append('password', formData.password);
+        form.append('provider', isCustomProvider ? formData.customProvider : formData.provider);
+        form.append('imap_host', formData.imapHost);
+        form.append('imap_port', formData.imapPort ? String(formData.imapPort) : '');
+        form.append('smtp_host', formData.smtpHost);
+        form.append('smtp_port', formData.smtpPort ? String(formData.smtpPort) : '');
+        form.append('use_ssl', String(formData.useSsl));
+        form.append('notes', formData.notes || '');
+        
+        formData.files.forEach((file, index) => {
+          console.log(`📎 Appending file ${index + 1}:`, file.name, file.size, file.type);
+          form.append('uploaded_files', file);
+        });
+        
+        console.log('🚀 Submitting FormData to /api/campaigns/');
+        apiResponse = await api.post('/api/campaigns/', form);
+      } else {
+        console.log('📄 Submitting as JSON (no files)');
+        // Send as JSON if no files
+        const campaignData = {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          provider: isCustomProvider ? formData.customProvider : formData.provider,
+          imap_host: formData.imapHost,
+          imap_port: formData.imapPort ? parseInt(formData.imapPort, 10) : null,
+          smtp_host: formData.smtpHost,
+          smtp_port: formData.smtpPort ? parseInt(formData.smtpPort, 10) : null,
+          use_ssl: formData.useSsl,
+          notes: formData.notes || "",
+        };
+        console.log('📋 Campaign data to submit:', campaignData);
+        console.log('🚀 Submitting JSON to /api/campaigns/');
+        apiResponse = await api.post('/api/campaigns/', campaignData);
+      }
 
-      console.log('Response status:', apiResponse.status);
-      console.log('Response headers:', apiResponse.headers);
-      console.log('Response data:', apiResponse.data);
+      console.log('✅ Response received:', {
+        status: apiResponse.status,
+        statusText: apiResponse.statusText,
+        data: apiResponse.data
+      });
       
       if (apiResponse.status >= 400) {
         const errorDetail = apiResponse.data?.detail || 
                           apiResponse.data?.message || 
                           'No error details provided';
-        console.error('Campaign creation failed:', {
-          status: apiResponse.status,
-          statusText: apiResponse.statusText,
-          data: apiResponse.data,
-          headers: apiResponse.headers
-        });
+        console.error('❌ Campaign creation failed:', errorDetail);
         throw new Error(`Failed to create campaign: ${errorDetail}`);
       }
       
-      console.log("Campaign created successfully:", apiResponse.data);
+      console.log("🎉 Campaign created successfully:", apiResponse.data);
       
-      // Reset form and show success message
+      // Reset form and clear error message
       setFormData({
         name: "",
         email: "",
@@ -353,31 +333,49 @@ function EmailMainForm() {
       });
       setFileNames([]);
       setCurrentStep(1);
+      setErrorMessage(""); // Clear any error messages
       
-      // Show success message
-      setErrorMessage("Campaign created successfully!");
+      // Show success message briefly
+      setTimeout(() => {
+        setErrorMessage("Campaign created successfully!");
+        setTimeout(() => setErrorMessage(""), 3000); // Clear success message after 3 seconds
+      }, 100);
       
-    } catch (error: any) {
-      console.error("Campaign submission error:", error);
+    } catch (error: unknown) {
+      console.error("❌ Campaign submission error:", error);
       
       // Handle API errors
-      if (error?.response) {
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as any;
+        console.log('🔍 API Error details:', {
+          status: apiError.response?.status,
+          statusText: apiError.response?.statusText,
+          data: apiError.response?.data,
+          headers: apiError.response?.headers
+        });
+        
+        if (apiError.response?.status === 401 || apiError.response?.status === 403) {
+          console.log('🔐 Authentication error, redirecting to login');
+          navigate('/login');
+          return;
+        }
+        
         // Handle HTTP errors with response
-        const errorMessage = error.response.data?.detail || 
-                           error.response.data?.message || 
-                           error.message || 
+        const errorMessage = apiError.response?.data?.detail || 
+                           apiError.response?.data?.message || 
+                           apiError.message || 
                            "Failed to create campaign";
         setErrorMessage(`Error: ${errorMessage}`);
-      } else if (error?.request) {
-        // The request was made but no response was received
-        setErrorMessage("No response from server. Please check your connection.");
       } else if (error instanceof Error) {
         // Something happened in setting up the request
+        console.log('🌐 Network or setup error:', error.message);
         setErrorMessage(`Error: ${error.message}`);
       } else {
+        console.log('❓ Unknown error type:', error);
         setErrorMessage("An unknown error occurred. Please try again.");
       }
     } finally {
+      console.log('🏁 Form submission completed, setting isSubmitting to false');
       setIsSubmitting(false);
     }
   };
@@ -931,18 +929,33 @@ function EmailMainForm() {
   const isLastStep = currentStep === totalSteps;
   const isFirstStep = currentStep === 1;
 
-  // Add axios response interceptor to handle 403 errors globally
-  useEffect(() => {
-    // We don't need to add another interceptor here since we already have one at the top of the file
-    // that handles 403 errors. The interceptor at the top will handle all API errors consistently.
-    
-    // If you need to handle 403 errors differently in this component,
-    // you can add specific logic in the error handling of your API calls.
-  }, []);
-
   // Wrap the form content in a form element
   return (
-    <form className="email-config-form" onSubmit={(e) => e.preventDefault()}>
+    <form
+      className="email-config-form"
+      onSubmit={handleSubmit}
+      noValidate
+      onKeyDown={e => {
+        // Prevent Enter from submitting the form unless on the last step and the submit button is focused
+        if (
+          e.key === 'Enter' &&
+          !isLastStep &&
+          (e.target as HTMLElement).tagName !== 'TEXTAREA'
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🚫 Prevented Enter key submission on step', currentStep);
+        }
+      }}
+      onKeyPress={e => {
+        // Additional safety to prevent form submission on Enter
+        if (e.key === 'Enter' && !isLastStep) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🚫 Prevented Enter key press submission on step', currentStep);
+        }
+      }}
+    >
       <div className="form-container">
         <div className="form-header">
           <h2>Email Configuration</h2>
@@ -999,16 +1012,48 @@ function EmailMainForm() {
               </button>
             ) : (
               <button
-                type="button"
+                type="submit"
                 className={`btn btn-primary ${isSubmitting ? 'btn-loading' : ''}`}
-                onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isAuthenticated || isLoading || currentStep !== totalSteps || isUploadingFiles}
+                onClick={(e) => {
+                  console.log('🔘 Submit button clicked');
+                  console.log('Button state:', {
+                    isSubmitting,
+                    isAuthenticated,
+                    isLoading,
+                    currentStep,
+                    totalSteps,
+                    isUploadingFiles
+                  });
+                  
+                  // Additional safety check
+                  if (isSubmitting || !isAuthenticated || isLoading || currentStep !== totalSteps || isUploadingFiles) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🚫 Submit button disabled, preventing submission');
+                    return;
+                  }
+                  
+                  // Ensure user is on the last step and has completed all required fields
+                  if (currentStep !== totalSteps) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🚫 Not on last step, preventing submission');
+                    return;
+                  }
+                }}
               >
                 {isSubmitting ? (
                   <>
                     <span className="spinner"></span>
                     Submitting...
                   </>
+                ) : !isAuthenticated ? (
+                  'Please Log In'
+                ) : isLoading ? (
+                  'Loading...'
+                ) : isUploadingFiles ? (
+                  'Uploading Files...'
                 ) : (
                   'Submit Configuration'
                 )}
