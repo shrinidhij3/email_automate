@@ -203,6 +203,12 @@ function EmailMainForm() {
       }
     }
     
+    // File upload validation - required on step 3
+    if (currentStep === 3 && (!formData.files || formData.files.length === 0)) {
+      setErrorMessage('At least one file is required. Please upload a PDF or other document.');
+      return false;
+    }
+    
     return true;
   };
 
@@ -245,6 +251,14 @@ function EmailMainForm() {
     // Validate form
     if (!validateForm()) {
       console.log('❌ Form validation failed');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    
+    // Additional check for files on step 3
+    if (currentStep === 3 && (!formData.files || formData.files.length === 0)) {
+      console.log('❌ No files uploaded, preventing submission');
+      setErrorMessage('At least one file is required. Please upload a PDF or other document.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -315,31 +329,9 @@ function EmailMainForm() {
       
       console.log("🎉 Campaign created successfully:", apiResponse.data);
       
-      // Reset form and clear error message
-      setFormData({
-        name: "",
-        email: "",
-        password: "",
-        provider: "gmail",
-        customProvider: "",
-        imapHost: PROVIDER_CONFIGS.gmail.imapHost,
-        imapPort: PROVIDER_CONFIGS.gmail.imapPort,
-        smtpHost: PROVIDER_CONFIGS.gmail.smtpHost,
-        smtpPort: PROVIDER_CONFIGS.gmail.smtpPort,
-        useSecure: PROVIDER_CONFIGS.gmail.useSecure,
-        useSsl: PROVIDER_CONFIGS.gmail.useSsl,
-        notes: "",
-        files: [],
-      });
-      setFileNames([]);
-      setCurrentStep(1);
-      setErrorMessage(""); // Clear any error messages
-      
-      // Show success message briefly
-      setTimeout(() => {
-        setErrorMessage("Campaign created successfully!");
-        setTimeout(() => setErrorMessage(""), 3000); // Clear success message after 3 seconds
-      }, 100);
+      // Redirect to email dashboard instead of resetting form
+      console.log('🔄 Redirecting to email dashboard...');
+      navigate('/email-dashboard');
       
     } catch (error: unknown) {
       console.error("❌ Campaign submission error:", error);
@@ -935,26 +927,6 @@ function EmailMainForm() {
       className="email-config-form"
       onSubmit={handleSubmit}
       noValidate
-      onKeyDown={e => {
-        // Prevent Enter from submitting the form unless on the last step and the submit button is focused
-        if (
-          e.key === 'Enter' &&
-          !isLastStep &&
-          (e.target as HTMLElement).tagName !== 'TEXTAREA'
-        ) {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('🚫 Prevented Enter key submission on step', currentStep);
-        }
-      }}
-      onKeyPress={e => {
-        // Additional safety to prevent form submission on Enter
-        if (e.key === 'Enter' && !isLastStep) {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('🚫 Prevented Enter key press submission on step', currentStep);
-        }
-      }}
     >
       <div className="form-container">
         <div className="form-header">
@@ -1015,33 +987,6 @@ function EmailMainForm() {
                 type="submit"
                 className={`btn btn-primary ${isSubmitting ? 'btn-loading' : ''}`}
                 disabled={isSubmitting || !isAuthenticated || isLoading || currentStep !== totalSteps || isUploadingFiles}
-                onClick={(e) => {
-                  console.log('🔘 Submit button clicked');
-                  console.log('Button state:', {
-                    isSubmitting,
-                    isAuthenticated,
-                    isLoading,
-                    currentStep,
-                    totalSteps,
-                    isUploadingFiles
-                  });
-                  
-                  // Additional safety check
-                  if (isSubmitting || !isAuthenticated || isLoading || currentStep !== totalSteps || isUploadingFiles) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('🚫 Submit button disabled, preventing submission');
-                    return;
-                  }
-                  
-                  // Ensure user is on the last step and has completed all required fields
-                  if (currentStep !== totalSteps) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('🚫 Not on last step, preventing submission');
-                    return;
-                  }
-                }}
               >
                 {isSubmitting ? (
                   <>

@@ -58,12 +58,13 @@ INSTALLED_APPS = [
 
 # Middleware configuration - CORS middleware MUST be first
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # MUST be first for CORS to work
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # <-- Added for CORS
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'em_store.middleware.CustomCSRFMiddleware',  # Custom CSRF middleware
+    'em_store.middleware.CustomCSRFMiddleware',  # Custom CSRF middleware for API
+    # 'django.middleware.csrf.CsrfViewMiddleware',  # Disabled for JWT-based auth
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -94,11 +95,59 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'em_store.wsgi.application'
 
-# Cloudflare R2 Configuration
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.getenv('CLOUDFLARE_BUCKET_NAME', 'email-autoamation')
-AWS_S3_ENDPOINT_URL = 'https://r2.cloudflarestorage.com'
+# --- HARDCODED SETTINGS FOR DEV/PROD ---
+
+# Set this to True for local dev, False for production
+IS_DEV = os.getenv('DJANGO_ENV', 'development') == 'development'
+
+if IS_DEV:
+    DEBUG = True
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ]
+    SESSION_COOKIE_DOMAIN = None  # Use None for localhost to avoid domain mismatch
+    CSRF_COOKIE_DOMAIN = None
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_SSL_REDIRECT = False
+    FRONTEND_URL = 'http://localhost:5173'
+    BACKEND_URL = 'http://localhost:8000'
+else:
+    DEBUG = False
+    ALLOWED_HOSTS = [
+        'email-automate-ob1a.onrender.com',
+        'localhost',
+        '127.0.0.1',
+    ]
+    CORS_ALLOWED_ORIGINS = [
+        'https://email-automate-1-1hwv.onrender.com',
+        'https://email-automate-ob1a.onrender.com',
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'https://email-automate-1-1hwv.onrender.com',
+        'https://email-automate-ob1a.onrender.com',
+    ]
+    SESSION_COOKIE_DOMAIN = '.onrender.com'
+    CSRF_COOKIE_DOMAIN = '.onrender.com'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    FRONTEND_URL = 'https://email-automate-1-1hwv.onrender.com'
+    BACKEND_URL = 'https://email-automate-ob1a.onrender.com'
+
+# --- END HARDCODED SETTINGS ---
+
+# Cloudflare R2 Configuration (keep secrets in env)
+AWS_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('R2_BUCKET_NAME', 'email-autoamation')
+AWS_S3_ENDPOINT_URL = os.getenv('R2_ENDPOINT_URL', 'https://4d4c294f4e40b9cb08edf870ed60b046.r2.cloudflarestorage.com')
 AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com'
 AWS_DEFAULT_ACL = 'public-read'
 AWS_QUERYSTRING_AUTH = False
@@ -107,15 +156,22 @@ AWS_S3_OBJECT_PARAMETERS = {
     'CacheControl': 'max-age=86400',
 }
 
-# Modern Django (4.2+) storage configuration using STORAGES dictionary
+# Storage configuration - Use R2 for media files, keep static files local
 STORAGES = {
     'default': {
         'BACKEND': 'em_store.storage_backends.R2MediaStorage',
     },
     'staticfiles': {
-        'BACKEND': 'em_store.storage_backends.R2StaticStorage',
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
     },
 }
+
+# Frontend/Backend URLs for CORS, CSRF, and download URLs
+# FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+# BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8000')
+
+# CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', FRONTEND_URL).split(',')
+# CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', FRONTEND_URL).split(',')
 
 # Database configuration
 DATABASES = {
@@ -130,21 +186,12 @@ DATABASES = {
 }
 
 # CORS configuration
-CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://email-automate-1-1hwv.onrender.com',
 ]
-
-# Add environment variable override for CORS origins
-env_cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
-if env_cors_origins and env_cors_origins[0]:
-    CORS_ALLOWED_ORIGINS.extend([origin.strip() for origin in env_cors_origins if origin.strip()])
-
-# Allow all methods needed by the frontend
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -153,31 +200,105 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
-
-# Allow all necessary headers
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
     'authorization',
     'content-type',
     'dnt',
-    'expires',
     'origin',
     'user-agent',
+    'x-csrftoken',
     'x-requested-with',
     'cache-control',
     'pragma',
+    'x-xsrf-token',
+    'x-api-key',
+    'x-client-id',
+    'x-access-token',
+    'x-refresh-token',
+    'x-auth-token',
+    'x-csrf-token',
+    'x-session-id',
+    'x-xsrf-token',
+    'x-frame-options',
+    'x-content-type-options',
+    'x-xss-protection',
+    'x-forwarded-for',
+    'x-forwarded-proto',
+    'x-forwarded-host',
+    'x-forwarded-port',
+    'x-real-ip',
+    'x-request-id',
+    'x-correlation-id',
+    'x-forwarded-prefix',
+    'x-forwarded-path',
+    'x-forwarded-slash',
+    'x-forwarded-url',
+    'x-forwarded-server',
+    'x-forwarded-client-cert',
+    'x-forwarded-client-cert-chain',
+    'x-forwarded-client-cert-issuer',
+    'x-forwarded-client-cert-subject',
+    'x-forwarded-client-cert-valid-from',
+    'x-forwarded-client-cert-valid-to',
+    'x-forwarded-client-cert-serial',
+    'x-forwarded-client-cert-fingerprint',
+    'x-forwarded-client-cert-public-key',
+    'x-forwarded-client-cert-signature',
+    'x-forwarded-client-cert-algorithm',
+    'x-forwarded-client-cert-key-usage',
+    'x-forwarded-client-cert-ext-key-usage',
+    'x-forwarded-client-cert-basic-constraints',
+    'x-forwarded-client-cert-subject-alt-name',
+    'x-forwarded-client-cert-issuer-alt-name',
+    'x-forwarded-client-cert-crl-distribution-points',
+    'x-forwarded-client-cert-ocsp',
+    'x-forwarded-client-cert-ocsp-responder',
+    'x-forwarded-client-cert-ocsp-response',
+    'x-forwarded-client-cert-ocsp-status',
+    'x-forwarded-client-cert-ocsp-this-update',
+    'x-forwarded-client-cert-ocsp-next-update',
+    'x-forwarded-client-cert-ocsp-revocation-time',
+    'x-forwarded-client-cert-ocsp-revocation-reason',
+    'x-forwarded-client-cert-ocsp-issuer',
+    'x-forwarded-client-cert-ocsp-serial',
+    'x-forwarded-client-cert-ocsp-fingerprint',
+    'x-forwarded-client-cert-ocsp-signature',
+    'x-forwarded-client-cert-ocsp-algorithm',
+    'x-forwarded-client-cert-ocsp-key-usage',
+    'x-forwarded-client-cert-ocsp-ext-key-usage',
+    'x-forwarded-client-cert-ocsp-basic-constraints',
+    'x-forwarded-client-cert-ocsp-subject-alt-name',
+    'x-forwarded-client-cert-ocsp-issuer-alt-name',
+    'x-forwarded-client-cert-ocsp-crl-distribution-points',
+    'x-forwarded-client-cert-ocsp-ocsp',
+    'x-forwarded-client-cert-ocsp-ocsp-responder',
+    'x-forwarded-client-cert-ocsp-ocsp-response',
+    'x-forwarded-client-cert-ocsp-ocsp-status',
+    'x-forwarded-client-cert-ocsp-ocsp-this-update',
+    'x-forwarded-client-cert-ocsp-ocsp-next-update',
+    'x-forwarded-client-cert-ocsp-ocsp-revocation-time',
+    'x-forwarded-client-cert-ocsp-ocsp-revocation-reason',
+    'x-forwarded-client-cert-ocsp-ocsp-issuer',
+    'x-forwarded-client-cert-ocsp-ocsp-serial',
+    'x-forwarded-client-cert-ocsp-ocsp-fingerprint',
+    'x-forwarded-client-cert-ocsp-ocsp-signature',
+    'x-forwarded-client-cert-ocsp-ocsp-algorithm',
+    'x-forwarded-client-cert-ocsp-ocsp-key-usage',
+    'x-forwarded-client-cert-ocsp-ocsp-ext-key-usage',
+    'x-forwarded-client-cert-ocsp-ocsp-basic-constraints',
+    'x-forwarded-client-cert-ocsp-ocsp-subject-alt-name',
+    'x-forwarded-client-cert-ocsp-ocsp-issuer-alt-name',
+    'x-forwarded-client-cert-ocsp-ocsp-crl-distribution-points',
 ]
-
-# Expose headers that the frontend needs to access
 CORS_EXPOSE_HEADERS = [
-    'Content-Type',
+    'Content-Disposition',
     'Content-Length',
     'X-Requested-With',
-    'Authorization',
+    'X-CSRFToken',
+    'X-Frame-Options',
 ]
-
-# Cache preflight requests for 1 day
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
 # JWT Settings
@@ -217,7 +338,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_PATH = '/'
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = 'sessionid'
-SESSION_COOKIE_DOMAIN = None
+# SESSION_COOKIE_DOMAIN = None # This line is now handled by the new_code
 
 # Handle cookie settings for different environments
 if DEBUG:
@@ -255,21 +376,6 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = 'same-origin'
 
 # CSRF settings - exclude API endpoints
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'https://email-automate-1-1hwv.onrender.com',
-    'https://email-automate-ob1a.onrender.com',
-]
-
-# Add environment variable override for CSRF trusted origins
-env_csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
-if env_csrf_origins and env_csrf_origins[0]:
-    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in env_csrf_origins if origin.strip()])
-
-# Exclude API endpoints from CSRF protection
 CSRF_EXEMPT_URLS = [
     r'^/api/.*$',  # All API endpoints
 ]
@@ -283,8 +389,8 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # File upload settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 
 # Allowed file types for uploads

@@ -163,20 +163,18 @@ const EmailDashboard: FC = () => {
   };
 
   const processCsv = (text: string): CsvEntry[] => {
-    const lines = text.split(/\r?\n/);
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    
     if (lines.length < 2) {
-      throw new Error("CSV file is empty or has no data rows");
+      throw new Error("CSV must contain at least a header row and one data row");
     }
 
-    // Parse headers
-    const headers = lines[0]
-      .split(",")
-      .map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
+    const headerLine = lines[0];
+    const headers = headerLine.split(',').map(h => h.trim().toLowerCase());
 
-    // Validate CSV format - now requiring client_email as well
-    const requiredColumns = ["name", "email", "client_email"];
+    const requiredColumns = ['name', 'email', 'client_email'];
     const missingColumns = requiredColumns.filter(col => !headers.includes(col));
-    
+
     if (missingColumns.length > 0) {
       throw new Error(`CSV must contain all required columns: ${requiredColumns.join(", ")}. Missing: ${missingColumns.join(", ")}`);
     }
@@ -198,6 +196,11 @@ const EmailDashboard: FC = () => {
         const email = cleanValues[headers.indexOf("email")]?.toLowerCase() || "";
         const client_email = cleanValues[headers.indexOf("client_email")]?.toLowerCase() || "";
 
+        // Skip rows where all required fields are empty
+        if (!name && !email && !client_email) {
+          return null; // This row will be filtered out
+        }
+
         // Validate required fields
         if (!name || !email || !client_email) {
           throw new Error(`Missing required field in row ${index + 2}. All fields (name, email, client_email) are required.`);
@@ -218,7 +221,8 @@ const EmailDashboard: FC = () => {
           email: email.trim().toLowerCase(),
           client_email: client_email.trim().toLowerCase()
         };
-      });
+      })
+      .filter(entry => entry !== null) as CsvEntry[]; // Remove null entries
   };
 
   const handleBulkSubmit = async (e: FormEvent) => {
@@ -250,12 +254,8 @@ const EmailDashboard: FC = () => {
           return;
         }
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Failed to upload CSV');
-        }
-
-        const result = await response.json();
+        // Handle axios response properly
+        const result = response.data;
 
         if (
           response.status === 400 &&
@@ -274,7 +274,7 @@ const EmailDashboard: FC = () => {
             `Found ${dupEmails.length} duplicate email(s) in the file: ${displayDups}`,
             "error"
           );
-        } else if (response.ok || response.status === 207) {
+        } else if (response.status === 200 || response.status === 207) {
           // Success or partial success
           const successMsg = [];
 

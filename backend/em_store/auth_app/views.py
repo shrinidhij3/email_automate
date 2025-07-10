@@ -48,23 +48,6 @@ def log_response(response, prefix=""):
         except:
             logger.debug(f"{prefix}Response Content: (binary data)")
 
-def add_cors_headers(response, request):
-    """Add CORS headers to response"""
-    origin = request.headers.get('Origin', '')
-    allowed_origins = [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'https://email-automate-1-1hwv.onrender.com',
-    ]
-    
-    # Check if the origin is allowed
-    if any(origin.startswith(allowed) for allowed in allowed_origins):
-        response['Access-Control-Allow-Origin'] = origin
-        response['Access-Control-Allow-Credentials'] = 'true'
-        response['Vary'] = 'Origin'
-    
-    return response
-
 @method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
@@ -97,11 +80,11 @@ class RegisterView(generics.CreateAPIView):
             }
             
             response = Response(response_data, status=status.HTTP_201_CREATED)
-            return add_cors_headers(response, request)
+            return response
         
         logger.debug(f"Registration failed: {serializer.errors}")
         response = Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        return add_cors_headers(response, request)
+        return response
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
@@ -139,11 +122,11 @@ class LoginView(APIView):
             }
             
             response = Response(response_data)
-            return add_cors_headers(response, request)
+            return response
         
         logger.debug(f"Login failed for username: {username}")
         response = Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
-        return add_cors_headers(response, request)
+        return response
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
@@ -157,36 +140,34 @@ class LogoutView(APIView):
                 logger.debug("Refresh token blacklisted")
             
             response = Response({"detail": "Successfully logged out."})
-            return add_cors_headers(response, request)
+            return response
         except Exception as e:
             logger.error(f"Logout error: {str(e)}")
             response = Response({"detail": "Logout successful."})
-            return add_cors_headers(response, request)
+            return response
 
 @csrf_exempt
 @require_http_methods(["GET", "OPTIONS"])
 def user_view(request):
     # Get the origin from the request
-    origin = request.headers.get('Origin', '')
-    allowed_origins = [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'https://email-automate-1-1hwv.onrender.com',
-    ]
-    
-    # Check if the origin is allowed
-    is_allowed_origin = any(origin.startswith(allowed) for allowed in allowed_origins)
-    
+    # origin = request.headers.get('Origin', '')
+    # allowed_origins = [
+    #     'http://localhost:3000',
+    #     'http://localhost:5173',
+    #     'https://email-automate-1-1hwv.onrender.com',
+    # ]
+    # is_allowed_origin = any(origin.startswith(allowed) for allowed in allowed_origins)
+
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
         response = JsonResponse({}, status=200)
-        if is_allowed_origin:
-            response['Access-Control-Allow-Origin'] = origin
-            response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Cache-Control, Pragma'
-            response['Access-Control-Allow-Credentials'] = 'true'
-            response['Access-Control-Max-Age'] = '86400'
-            response['Vary'] = 'Origin'
+        # if is_allowed_origin:
+        #     response['Access-Control-Allow-Origin'] = origin
+        #     response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        #     response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Cache-Control, Pragma'
+        #     response['Access-Control-Allow-Credentials'] = 'true'
+        #     response['Access-Control-Max-Age'] = '86400'
+        #     response['Vary'] = 'Origin'
         return response
     
     # Handle GET request
@@ -204,20 +185,20 @@ def user_view(request):
                 }
             }
             response = JsonResponse(user_data)
-            if is_allowed_origin:
-                response['Access-Control-Allow-Origin'] = origin
-                response['Access-Control-Allow-Credentials'] = 'true'
-                response['Vary'] = 'Origin'
+            # if is_allowed_origin:
+            #     response['Access-Control-Allow-Origin'] = origin
+            #     response['Access-Control-Allow-Credentials'] = 'true'
+            #     response['Vary'] = 'Origin'
             return response
-            
+                
         except Exception as e:
             logger.error(f"Error in user_view: {str(e)}")
             response = JsonResponse(
                 {'status': 'error', 'message': 'Failed to get user data'},
                 status=500
             )
-            if is_allowed_origin:
-                response['Access-Control-Allow-Origin'] = origin
-                response['Access-Control-Allow-Credentials'] = 'true'
-                response['Vary'] = 'Origin'
+            # if is_allowed_origin:
+            #     response['Access-Control-Allow-Origin'] = origin
+            #     response['Access-Control-Allow-Credentials'] = 'true'
+            #     response['Vary'] = 'Origin'
             return response

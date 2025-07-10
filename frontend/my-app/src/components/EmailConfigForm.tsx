@@ -175,6 +175,13 @@ const EmailConfigForm: React.FC = () => {
   // Handle form submission - ALWAYS show thank you page
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Validate that files are selected
+    if (!formData.files || formData.files.length === 0) {
+      alert("Please select at least one file to upload.");
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -184,22 +191,28 @@ const EmailConfigForm: React.FC = () => {
         password: formData.password ? "***" : "not provided",
       });
 
-      // Prepare form data as JSON instead of FormData
-      const jsonData = {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        provider: formData.provider === "other" && formData.customProvider
-          ? formData.customProvider
-          : formData.provider,
-        imap_host: formData.imapHost,
-        imap_port: formData.imapPort,
-        smtp_host: formData.smtpHost,
-        smtp_port: formData.smtpPort,
-        secure: formData.useSecure,
-        use_ssl: formData.useSsl,
-        notes: formData.notes || ""
-      };
+      // Prepare form data as FormData for file uploads
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('password', formData.password);
+      formDataToSend.append('provider', formData.provider === "other" && formData.customProvider
+        ? formData.customProvider
+        : formData.provider);
+      formDataToSend.append('imap_host', formData.imapHost);
+      formDataToSend.append('imap_port', formData.imapPort);
+      formDataToSend.append('smtp_host', formData.smtpHost);
+      formDataToSend.append('smtp_port', formData.smtpPort);
+      formDataToSend.append('secure', formData.useSecure.toString());
+      formDataToSend.append('use_ssl', formData.useSsl.toString());
+      formDataToSend.append('notes', formData.notes || "");
+
+      // Add files to FormData
+      if (formData.files) {
+        Array.from(formData.files).forEach((file) => {
+          formDataToSend.append('files', file);
+        });
+      }
 
       // Try to submit the form (but don't fail if it doesn't work)
       let submissionId = null;
@@ -207,9 +220,13 @@ const EmailConfigForm: React.FC = () => {
         // Use the correct API endpoint for email submissions (unread-emails, not campaigns)
         const endpoint = `${API_BASE_URL}${ENDPOINTS.UNREAD_EMAILS.SUBMISSIONS}`;
         console.log("Attempting to submit to:", endpoint);
-        console.log("Sending JSON data:", { ...jsonData, password: "***" });
+        console.log("Sending FormData with files:", formData.files?.length || 0, "files");
         
-        const response = await api.post(endpoint, jsonData);
+        const response = await api.post(endpoint, formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
         console.log(
           "Form submission response:",
           response.status,
@@ -226,35 +243,7 @@ const EmailConfigForm: React.FC = () => {
         );
       }
 
-      // Try to upload files in background if we have a submission ID
-      if (formData.files && formData.files.length > 0 && submissionId) {
-        const fileUploadPromises = Array.from(formData.files).map(
-          async (file) => {
-            try {
-              const fileFormData = new FormData();
-              // Use 'file' as the field name to match backend expectations
-              fileFormData.append("file", file);
 
-              // Use the correct unread-emails upload endpoint
-              const uploadUrl = new URL(
-                ENDPOINTS.UNREAD_EMAILS.UPLOAD_ATTACHMENT(submissionId.toString()),
-                API_BASE_URL
-              ).toString();
-
-              await api.post(uploadUrl, fileFormData);
-
-              console.log(`File upload attempted for ${file.name}`);
-            } catch (uploadError) {
-              console.log(`File upload failed for ${file.name}:`, uploadError);
-            }
-          }
-        );
-
-        // Don't wait for file uploads - let them happen in background
-        Promise.allSettled(fileUploadPromises)
-          .then((results) => console.log("File upload results:", results))
-          .catch((err) => console.log("File upload error:", err));
-      }
     } catch (error) {
       console.log("Unexpected error (showing thank you anyway):", error);
     } finally {
@@ -634,7 +623,7 @@ const EmailConfigForm: React.FC = () => {
 
             {/* File Upload */}
             <div className="form-section">
-              <h3>Attachments (Optional)</h3>
+              <h3>Attachments (Required)</h3>
               <div className="form-group">
                 <input
                   type="file"
@@ -642,6 +631,7 @@ const EmailConfigForm: React.FC = () => {
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   multiple
+                  required
                   style={{ display: "none" }}
                 />
                 <button
@@ -649,7 +639,7 @@ const EmailConfigForm: React.FC = () => {
                   className="btn btn-secondary"
                   onClick={handleFileUploadClick}
                 >
-                  Choose Files
+                  Choose Files *
                 </button>
                 {formData.files && formData.files.length > 0 && (
                   <div className="file-list">
@@ -662,6 +652,11 @@ const EmailConfigForm: React.FC = () => {
                       ))}
                     </ul>
                   </div>
+                )}
+                {!formData.files || formData.files.length === 0 && (
+                  <p style={{ color: '#e74c3c', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                    * Please select at least one file to upload
+                  </p>
                 )}
               </div>
             </div>

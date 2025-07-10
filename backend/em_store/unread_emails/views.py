@@ -74,8 +74,15 @@ def download_attachment(request, attachment_id):
         # Log the download attempt
         logger.info(f"User {request.user} downloading attachment {attachment_id} - {attachment.original_filename}")
         
+        # Check if file exists
+        if not attachment.file:
+            return Response(
+                {'error': 'File not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
         # Create the response with file data
-        response = HttpResponse(attachment.file_data, content_type=attachment.content_type)
+        response = HttpResponse(attachment.file.read(), content_type=attachment.content_type)
         response['Content-Disposition'] = f'attachment; filename="{attachment.original_filename}"'
         response['Content-Length'] = attachment.file_size
         return response
@@ -333,8 +340,15 @@ class UnreadEmailViewSet(viewsets.ModelViewSet):
             # Log the download attempt
             logger.info(f"User {request.user} downloading attachment {attachment_id} - {attachment.original_filename}")
             
+            # Check if file exists
+            if not attachment.file:
+                return Response(
+                    {'error': 'File not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
             # Create the response with file data
-            response = HttpResponse(attachment.file_data, content_type=attachment.content_type)
+            response = HttpResponse(attachment.file.read(), content_type=attachment.content_type)
             response['Content-Disposition'] = f'attachment; filename="{attachment.original_filename}"'
             response['Content-Length'] = attachment.file_size
             return response

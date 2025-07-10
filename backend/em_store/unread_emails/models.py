@@ -161,7 +161,7 @@ class UnreadEmail(models.Model):
 class UnreadEmailAttachment(models.Model):
     """
     Model to store file attachments for unread email submissions
-    Files are stored directly in the database as binary data
+    Files are stored in Cloudflare R2 storage
     """
     def unread_email_attachment_path(instance, filename):
         """Generate file path for unread email attachments"""
@@ -175,11 +175,11 @@ class UnreadEmailAttachment(models.Model):
         related_name='attachments',
         help_text="The unread email submission this file belongs to"
     )
-    file_data = models.BinaryField(
+    file = models.FileField(
+        upload_to=unread_email_attachment_path,
         null=True,
         blank=True,
-        default=b'',
-        help_text="The actual file data"
+        help_text="The actual file"
     )
     original_filename = models.CharField(
         max_length=255,
@@ -202,139 +202,103 @@ class UnreadEmailAttachment(models.Model):
     def __str__(self):
         return f"{self.original_filename} ({self.unread_email.email})"
 
-    def save_file(self, file):
-        """
-        Save file data to the model instance.
-        
-        Args:
-            file: The uploaded file object
-        """
-        self.original_filename = file.name
-        self.content_type = file.content_type or 'application/octet-stream'
-        self.file_size = file.size
-        
-        # Read the file data and store it
-        if hasattr(file, 'read'):
-            self.file_data = file.read()
-        elif hasattr(file, 'file') and hasattr(file.file, 'read'):
-            self.file_data = file.file.read()
-        else:
-            raise ValueError("Invalid file object provided")
-        
-        # Generate download URL before saving
-        self.download_url = self._generate_cloudflare_url()
-        
-        # Save the model with all fields
-        self.save()
-        
-        # If download_url wasn't set, try to generate it again after save
-        if not self.download_url:
-            self.download_url = self._generate_download_url()
-            if self.download_url:
-                self.save(update_fields=['download_url'])
-        
-        return self
-        
     def save(self, *args, **kwargs):
-        """
-        Save the model instance with proper handling for file uploads and Cloudflare URL generation.
-        Uses transaction.atomic to ensure data consistency during concurrent uploads.
-        """
-        from django.db import transaction
+        """Save the file to Cloudflare R2 and update file metadata."""
+        is_new = not self.pk
+        file_changed = False
         
-        # If this is a new instance and file is being set
-        is_new = self._state.adding
-        
-        # Use transaction to ensure atomicity
-        with transaction.atomic():
-            # Save the instance first to get an ID
-            super().save(*args, **kwargs)
+        # Handle file upload to R2 for new attachments
+        if is_new and self.file:
+            self.original_filename = os.path.basename(str(self.file))
             
-            # Generate Cloudflare URL after initial save
-            if is_new and hasattr(self, 'file_data') and self.file_data and not self.download_url:
-                self.download_url = self._generate_cloudflare_url()
-                # Update only the download_url field
-                if self.download_url:
-                    UnreadEmailAttachment.objects.filter(pk=self.pk).update(
-                        download_url=self.download_url
-                    )
-    
-    def _generate_cloudflare_url(self):
-        """
-        Generate a Cloudflare R2 URL for the file.
-        Returns None if Cloudflare is not configured.
-        """
-        if not hasattr(self, 'file_data') or not self.file_data:
-            return None
+            # Get content type from file if not set
+            if not hasattr(self, 'content_type') or not self.content_type:
+                try:
+                    import mimetypes
+                    content_type, _ = mimetypes.guess_type(self.original_filename)
+                    self.content_type = content_type or 'application/octet-stream'
+                except Exception as e:
+                    logger.error(f"Error detecting content type: {e}")
+                    self.content_type = 'application/octet-stream'
             
-        # Get Cloudflare configuration
-        cloudflare_account_id = getattr(settings, 'CLOUDFLARE_ACCOUNT_ID', '')
-        cloudflare_bucket_name = getattr(settings, 'CLOUDFLARE_BUCKET_NAME', '')
-        
-        if not cloudflare_account_id or not cloudflare_bucket_name:
-            logger.warning("Cloudflare R2 configuration is missing in settings")
-            return None
-            
-        try:
-            # Generate a unique file name
-            ext = os.path.splitext(self.original_filename)[1] if self.original_filename else '.bin'
-            file_name = f"{uuid.uuid4()}{ext}"
-            return f"https://{cloudflare_account_id}.r2.cloudflarestorage.com/{cloudflare_bucket_name}/{file_name}"
-        except Exception as e:
-            logger.error(f"Error generating Cloudflare URL: {str(e)}")
-            return None
-
-    def get_file_data(self):
-        """
-        Return file data for download
-        """
-        if not hasattr(self, 'file_data') or not self.file_data:
-            return None
-            
-        try:
-            # Return the binary data directly
-            return bytes(self.file_data)
-        except Exception as e:
-            logger.error(f"Error reading file data: {str(e)}")
-            return None
-        
-    def _generate_download_url(self):
-        """Generate a download URL for this attachment."""
-        from django.urls import reverse
-        from django.conf import settings
-        
-        try:
-            # Generate URL for the download endpoint
-            # Note: Using the direct URL name without app namespace as it's included in the root URLs
-            path = reverse('download-attachment', kwargs={'attachment_id': self.pk})
-            
-            # Use Cloudflare tunnel URL from settings, fallback to SITE_DOMAIN or localhost
-            domain = getattr(settings, 'CLOUDFLARE_TUNNEL_URL', 
-                          getattr(settings, 'SITE_DOMAIN', 'http://localhost:8000'))
-            # Ensure domain doesn't end with a slash
-            domain = domain.rstrip('/')
-            
-            # Ensure path starts with a slash
-            if not path.startswith('/'):
-                path = '/' + path
+            # Read the file content
+            try:
+                file_content = self.file.read()
+                self.file_size = len(file_content)
                 
-            full_url = f"{domain}{path}"
-            logger.debug(f"Generated download URL: {full_url}")
-            return full_url
-        except Exception as e:
-            logger.error(f"Error generating download URL: {e}")
-            return ""
+                # Upload to R2
+                from em_store.storage_utils import upload_file_to_r2
+                upload_result = upload_file_to_r2(
+                    file_content,
+                    file_name=os.path.basename(self.file.name),
+                    content_type=self.content_type,
+                    folder=f'unread_emails/{self.unread_email_id}/attachments'
+                )
+                
+                if upload_result['success']:
+                    # Store the R2 key and URL
+                    self.file.name = upload_result['key']
+                    self.download_url = upload_result['url']
+                    file_changed = True
+                else:
+                    logger.error(f"Failed to upload file to R2: {upload_result.get('error')}")
+                    raise Exception(f"Failed to upload file to storage: {upload_result.get('error')}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing file upload: {e}", exc_info=True)
+                raise
         
+        # Save the model
+        super().save(*args, **kwargs)
+        
+        # If file was changed, update the URL in the database
+        if file_changed and self.pk:
+            UnreadEmailAttachment.objects.filter(pk=self.pk).update(
+                file=self.file.name,
+                download_url=self.download_url
+            )
+    
     def get_download_url(self):
         """Return the stored download URL."""
         if not self.download_url and self.pk:
             self.download_url = self._generate_download_url()
             self.save(update_fields=['download_url'])
         return self.download_url
-
-    class Meta:
-        db_table = 'unread_emails_unreademailattachment'
-        ordering = ['-created_at']
-        verbose_name = 'Attachment'
-        verbose_name_plural = 'Attachments'
+    
+    def _generate_download_url(self):
+        """Generate a download URL for this attachment from R2."""
+        if not self.file:
+            return ""
+            
+        try:
+            # If we already have a download URL, use it
+            if self.download_url:
+                return self.download_url
+                
+            # Otherwise, generate a new URL from the file field
+            if hasattr(self.file, 'url'):
+                return self.file.url
+                
+            # Fallback to constructing the URL from settings
+            if hasattr(settings, 'AWS_S3_CUSTOM_DOMAIN'):
+                return f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{self.file.name}"
+                
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error generating download URL: {e}", exc_info=True)
+            return ""
+    
+    def delete(self, *args, **kwargs):
+        """Delete the file from R2 when the model instance is deleted"""
+        # Delete the file from R2 storage
+        if self.file:
+            try:
+                from em_store.storage_utils import delete_file_from_r2
+                delete_file_from_r2(self.file.name)
+            except Exception as e:
+                logger.error(f"Error deleting file from R2: {e}", exc_info=True)
+                
+        # Delete the model instance
+        super().delete(*args, **kwargs)
 
