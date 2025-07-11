@@ -274,9 +274,10 @@ class UnreadEmailViewSet(viewsets.ModelViewSet):
                     file_size=uploaded_file.size
                 )
                 
-                # Save file data to the database
+                # Set the file field directly - this will trigger the save method to upload to R2
                 logger.info("Saving file to database...")
-                attachment.save_file(uploaded_file)
+                attachment.file = uploaded_file
+                attachment.save()
                 logger.info(f"File saved successfully with ID: {attachment.id}")
                 
                 return Response(

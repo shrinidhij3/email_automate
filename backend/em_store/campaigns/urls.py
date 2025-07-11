@@ -14,6 +14,7 @@ attachments_router.register(r'attachments', CampaignEmailAttachmentViewSet, base
 urlpatterns = [
     # Include both routers
     path('', include(router.urls)),
+    path('get_client_email/', views.get_client_email, name='get_client_email'),
     path('<int:campaign_pk>/', include(attachments_router.urls)),
     
     # Add the download URL with a custom action

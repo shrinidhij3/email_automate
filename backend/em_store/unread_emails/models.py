@@ -4,6 +4,7 @@ import uuid
 import base64
 import logging
 from django.db import models
+import typing
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class UnreadEmail(models.Model):
     
     def save(self, *args, **kwargs):
         # Always encrypt the password if it's set and not already encrypted
-        if self.password and not self.password.startswith('gAA'):  # Simple check if not encrypted
+        if self.password and isinstance(self.password, str) and not self.password.startswith('gAA'):
             try:
                 f = Fernet(get_fernet_key())
                 self.password = f.encrypt(self.password.encode()).decode()
@@ -81,14 +82,16 @@ class UnreadEmail(models.Model):
             return None
         try:
             f = Fernet(get_fernet_key())
-            return f.decrypt(self.password.encode()).decode()
+            if isinstance(self.password, str):
+                return f.decrypt(self.password.encode()).decode()
+            return None
         except Exception as e:
             logger.error(f"Error decrypting password: {e}")
             return None
     
     # Processing status
     is_processed = models.BooleanField(
-        default=False,
+        default=False,  # type: ignore
         help_text="Whether this submission has been processed"
     )
     
@@ -127,11 +130,11 @@ class UnreadEmail(models.Model):
     
     # Security
     secure = models.BooleanField(
-        default=True,
+        default=True,  # type: ignore
         help_text="Whether to use SSL/TLS for the connection (legacy field)"
     )
     use_ssl = models.BooleanField(
-        default=True,
+        default=True,  # type: ignore
         help_text="Whether to use SSL/TLS for the connection (new field)"
     )
     
@@ -139,7 +142,7 @@ class UnreadEmail(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_processed = models.BooleanField(
-        default=False,
+        default=False,  # type: ignore
         help_text="Whether this submission has been processed"
     )
     notes = models.TextField(
@@ -176,7 +179,7 @@ class UnreadEmailAttachment(models.Model):
         help_text="The unread email submission this file belongs to"
     )
     file = models.FileField(
-        upload_to=unread_email_attachment_path,
+        upload_to=unread_email_attachment_path,  # type: ignore
         null=True,
         blank=True,
         help_text="The actual file"
@@ -189,7 +192,7 @@ class UnreadEmailAttachment(models.Model):
         max_length=100,
         help_text="MIME type of the file"
     )
-    file_size = models.PositiveIntegerField(default=0, help_text="Size of the file in bytes")
+    file_size = models.PositiveIntegerField(default=0, help_text="Size of the file in bytes")  # type: ignore
     download_url = models.URLField(max_length=500, blank=True, null=True, help_text="Direct download URL for the file")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(default=timezone.now)
@@ -200,7 +203,9 @@ class UnreadEmailAttachment(models.Model):
         verbose_name_plural = 'Unread Email Attachments'
 
     def __str__(self):
-        return f"{self.original_filename} ({self.unread_email.email})"
+        # Ensure self.unread_email is an instance, not the field
+        email = getattr(self.unread_email, 'email', None)
+        return f"{self.original_filename} ({email})"
 
     def save(self, *args, **kwargs):
         """Save the file to Cloudflare R2 and update file metadata."""
@@ -223,51 +228,58 @@ class UnreadEmailAttachment(models.Model):
             
             # Read the file content
             try:
-                file_content = self.file.read()
-                self.file_size = len(file_content)
-                
-                # Upload to R2
+                file_content = b''
+                if hasattr(self.file, 'read'):  # type: ignore[attr-defined]
+                    if callable(self.file.read):  # type: ignore[attr-defined]
+                        from django.core.files.uploadedfile import InMemoryUploadedFile, TemporaryUploadedFile
+                        file_obj = typing.cast(InMemoryUploadedFile, self.file)
+                        file_content = file_obj.read()  # type: ignore[attr-defined]
+                self.file_size = len(typing.cast(bytes, file_content))  # type: ignore
+                # Upload to R2 with enhanced URL generation
                 from em_store.storage_utils import upload_file_to_r2
                 upload_result = upload_file_to_r2(
                     file_content,
-                    file_name=os.path.basename(self.file.name),
+                    file_name=os.path.basename(str(self.file.name)),
                     content_type=self.content_type,
-                    folder=f'unread_emails/{self.unread_email_id}/attachments'
+                    folder=f'unread_emails/{getattr(self, 'unread_email_id', '')}/attachments'
                 )
-                
                 if upload_result['success']:
                     # Store the R2 key and URL
                     self.file.name = upload_result['key']
                     self.download_url = upload_result['url']
                     file_changed = True
+                    logger.info(f"Successfully uploaded file to R2: {upload_result['key']}")
+                    logger.info(f"Generated download URL: {upload_result['url']}")
                 else:
                     logger.error(f"Failed to upload file to R2: {upload_result.get('error')}")
                     raise Exception(f"Failed to upload file to storage: {upload_result.get('error')}")
-                    
             except Exception as e:
                 logger.error(f"Error processing file upload: {e}", exc_info=True)
-                raise
         
         # Save the model
         super().save(*args, **kwargs)
         
         # If file was changed, update the URL in the database
         if file_changed and self.pk:
-            UnreadEmailAttachment.objects.filter(pk=self.pk).update(
+            UnreadEmailAttachment.objects.filter(pk=self.pk).update(  # type: ignore[attr-defined]
                 file=self.file.name,
                 download_url=self.download_url
             )
+            logger.info(f"Updated attachment {self.pk} with download URL: {self.download_url}")
     
     def get_download_url(self):
-        """Return the stored download URL."""
+        """Return the stored download URL or generate a new one."""
         if not self.download_url and self.pk:
             self.download_url = self._generate_download_url()
-            self.save(update_fields=['download_url'])
+            if self.download_url:
+                self.save(update_fields=['download_url'])
+                logger.info(f"Generated and stored download URL for attachment {self.pk}: {self.download_url}")
         return self.download_url
     
     def _generate_download_url(self):
         """Generate a download URL for this attachment from R2."""
         if not self.file:
+            logger.warning(f"No file associated with attachment {self.pk}")
             return ""
             
         try:
@@ -275,18 +287,14 @@ class UnreadEmailAttachment(models.Model):
             if self.download_url:
                 return self.download_url
                 
-            # Otherwise, generate a new URL from the file field
-            if hasattr(self.file, 'url'):
-                return self.file.url
-                
-            # Fallback to constructing the URL from settings
-            if hasattr(settings, 'AWS_S3_CUSTOM_DOMAIN'):
-                return f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{self.file.name}"
-                
-            return ""
+            # Use the R2 public domain approach with /media/ prefix
+            from em_store.storage_utils import fetch_r2_public_url
+            url = fetch_r2_public_url(self.file.name)
+            logger.info(f"Generated download URL for {self.file.name}: {url}")
+            return url
             
         except Exception as e:
-            logger.error(f"Error generating download URL: {e}", exc_info=True)
+            logger.error(f"Error generating download URL for attachment {self.pk}: {e}", exc_info=True)
             return ""
     
     def delete(self, *args, **kwargs):

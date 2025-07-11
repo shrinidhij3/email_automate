@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -101,17 +101,23 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
                             logger.warning(f"File {file.name} exceeds size limit (10MB)")
                             continue
                             
-                        # Create attachment with unique filename to avoid conflicts
+                        # Create attachment with proper file handling
                         try:
-                            attachment = CampaignEmailAttachment._default_manager.create(
+                            attachment = CampaignEmailAttachment(
                                 email_campaign=campaign,
-                                file=file,
                                 original_filename=file.name,
-                                file_size=file.size,
-                                content_type=file.content_type or 'application/octet-stream'
+                                content_type=file.content_type or 'application/octet-stream',
+                                file_size=file.size
                             )
+                            
+                            # Set the file field to trigger the save method
+                            attachment.file = file
+                            attachment.save()
+                            
                             successful_uploads += 1
                             logger.info(f"Created attachment ID {attachment.id} for file: {file.name}")
+                            logger.info(f"Download URL: {attachment.download_url}")
+                            
                         except Exception as e:
                             logger.error(f"Failed to create attachment for {file.name}: {str(e)}")
                             continue
@@ -169,16 +175,21 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
                     logger.warning(f"File {file.name} exceeds size limit (10MB)")
                     continue
                     
-                # Create attachment with error handling
-                attachment = CampaignEmailAttachment._default_manager.create(
+                # Create attachment with proper file handling
+                attachment = CampaignEmailAttachment(
                     email_campaign=campaign,
-                    file=file,
                     original_filename=file.name,
                     content_type=file.content_type or 'application/octet-stream',
                     file_size=file.size
                 )
+                
+                # Set the file field to trigger the save method
+                attachment.file = file
+                attachment.save()
+                
                 attachments.append(attachment)
                 logger.info(f"Successfully created attachment ID {attachment.id} for file: {file.name}")
+                logger.info(f"Download URL: {attachment.download_url}")
                 
             except Exception as e:
                 logger.error(f"Failed to create attachment for {file.name}: {str(e)}", exc_info=True)
@@ -213,3 +224,15 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
             {"message": "Campaign sending functionality coming soon"},
             status=status.HTTP_200_OK
         )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_client_email(request):
+    username = request.query_params.get('username')
+    if not username:
+        return Response({'error': 'username is required'}, status=status.HTTP_400_BAD_REQUEST)
+    campaign = EmailCampaign.objects.filter(name=username).first()
+    if campaign:
+        return Response({'client_email': campaign.email})
+    return Response({'error': 'No campaign found for this username'}, status=status.HTTP_404_NOT_FOUND)

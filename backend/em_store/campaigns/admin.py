@@ -17,6 +17,7 @@ User = get_user_model()
 
 class CampaignEmailAttachmentInline(admin.TabularInline):
     model = CampaignEmailAttachment
+    fk_name = 'email_campaign'  # Specify which foreign key to use
     extra = 0
     fields = ('file', 'original_filename', 'content_type', 'file_size', 'created_at')
     readonly_fields = ('original_filename', 'content_type', 'file_size', 'created_at')

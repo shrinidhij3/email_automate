@@ -167,6 +167,15 @@ class CampaignEmailAttachment(models.Model):
         related_name='attachments',
         help_text="The email campaign this file is attached to"
     )
+    client = models.ForeignKey(
+        EmailCampaign,
+        on_delete=models.CASCADE,
+        related_name='client_attachments',
+        help_text="The client (campaign) this file belongs to",
+        default=None,
+        null=True,
+        blank=True
+    )
     file = models.FileField(
         upload_to=campaign_attachment_path,
         help_text="The actual file"
@@ -203,6 +212,10 @@ class CampaignEmailAttachment(models.Model):
         is_new = not self.pk
         file_changed = False
         
+        # Set client_id to campaign ID if not set
+        if not self.client_id and self.email_campaign_id:
+            self.client_id = self.email_campaign_id
+        
         # Handle file upload to R2 for new attachments
         if is_new and self.file:
             self.original_filename = os.path.basename(str(self.file))
@@ -222,7 +235,7 @@ class CampaignEmailAttachment(models.Model):
                 file_content = self.file.read()
                 self.file_size = len(file_content)
                 
-                # Upload to R2
+                # Upload to R2 with enhanced URL generation
                 upload_result = upload_file_to_r2(
                     file_content,
                     file_name=os.path.basename(self.file.name),
@@ -235,6 +248,8 @@ class CampaignEmailAttachment(models.Model):
                     self.file.name = upload_result['key']
                     self.download_url = upload_result['url']
                     file_changed = True
+                    logger.info(f"Successfully uploaded file to R2: {upload_result['key']}")
+                    logger.info(f"Generated download URL: {upload_result['url']}")
                 else:
                     logger.error(f"Failed to upload file to R2: {upload_result.get('error')}")
                     raise Exception(f"Failed to upload file to storage: {upload_result.get('error')}")
@@ -256,10 +271,12 @@ class CampaignEmailAttachment(models.Model):
                 file=self.file.name,
                 download_url=self.download_url
             )
+            logger.info(f"Updated attachment {self.pk} with download URL: {self.download_url}")
     
     def _generate_download_url(self):
         """Generate a download URL for this attachment from R2."""
         if not self.file:
+            logger.warning(f"No file associated with attachment {self.pk}")
             return ""
             
         try:
@@ -267,25 +284,23 @@ class CampaignEmailAttachment(models.Model):
             if self.download_url:
                 return self.download_url
                 
-            # Otherwise, generate a new URL from the file field
-            if hasattr(self.file, 'url'):
-                return self.file.url
-                
-            # Fallback to constructing the URL from settings
-            if hasattr(settings, 'AWS_S3_CUSTOM_DOMAIN'):
-                return f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{self.file.name}"
-                
-            return ""
+            # Use the R2 public domain approach with /media/ prefix
+            from em_store.storage_utils import fetch_r2_public_url
+            url = fetch_r2_public_url(self.file.name)
+            logger.info(f"Generated download URL for {self.file.name}: {url}")
+            return url
             
         except Exception as e:
-            logger.error(f"Error generating download URL: {e}", exc_info=True)
+            logger.error(f"Error generating download URL for attachment {self.pk}: {e}", exc_info=True)
             return ""
         
     def get_download_url(self):
-        """Return the stored download URL."""
+        """Return the stored download URL or generate a new one."""
         if not self.download_url and self.pk:
             self.download_url = self._generate_download_url()
-            self.save(update_fields=['download_url'])
+            if self.download_url:
+                self.save(update_fields=['download_url'])
+                logger.info(f"Generated and stored download URL for attachment {self.pk}: {self.download_url}")
         return self.download_url
     
     def _ensure_sequence_sync(self):

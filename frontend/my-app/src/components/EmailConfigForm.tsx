@@ -84,9 +84,9 @@ const EmailConfigForm: React.FC = () => {
   // UI state
   const [showThankYou, setShowThankYou] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMounted = useRef(true);
+  const [showHelp, setShowHelp] = useState(false);
 
   // Auto-fill client email when user is authenticated
   useEffect(() => {
@@ -279,9 +279,6 @@ const EmailConfigForm: React.FC = () => {
   // Check if using custom provider
   const isCustomProvider = formData.provider === "other";
 
-  // Toggle help section
-  const toggleHelp = () => setShowHelp(!showHelp);
-
   // Quick fill port numbers
   const quickFillPort = (field: "imapPort" | "smtpPort", port: string) => {
     setFormData((prev) => ({
@@ -309,7 +306,6 @@ const EmailConfigForm: React.FC = () => {
       <div className="form-container">
         <div className="form-content">
           <h2>Email Configuration</h2>
-
           <form onSubmit={handleSubmit} noValidate>
             {/* Basic Information */}
             <div className="form-section">
@@ -325,7 +321,6 @@ const EmailConfigForm: React.FC = () => {
                   required
                 />
               </div>
-
               <div className="form-group">
                 <label htmlFor="email">Email *</label>
                 <input
@@ -337,7 +332,6 @@ const EmailConfigForm: React.FC = () => {
                   required
                 />
               </div>
-
               <div className="form-group">
                 <label htmlFor="password">Password *</label>
                 <input
@@ -350,7 +344,6 @@ const EmailConfigForm: React.FC = () => {
                 />
               </div>
             </div>
-
             {/* Provider Selection */}
             <div className="form-section">
               <h3>Email Provider</h3>
@@ -383,73 +376,85 @@ const EmailConfigForm: React.FC = () => {
                     />
                   )}
                 </div>
+                {/* Provider Instruction */}
+                <div className="provider-instruction" style={{ color: '#888', fontSize: '0.95em', marginTop: '0.5em' }}>
+                  Choose your email provider. For Gmail, use an App Password if you have 2FA enabled. For other providers, enter your custom domain and server details below.
               </div>
-
-              {/* Help Section */}
-              <div className="help-section">
+                {/* Dropdown Help Section */}
                 <button
                   type="button"
-                  className="help-toggle"
-                  onClick={toggleHelp}
-                  aria-expanded={showHelp}
+                  className="dropdown-help-btn"
+                  onClick={() => setShowHelp((prev) => !prev)}
+                  style={{ marginTop: '1em', marginBottom: '0.5em', fontSize: '1em', background: 'none', border: 'none', color: '#007bff', cursor: 'pointer' }}
                 >
-                  Need help with email server settings?
+                  {showHelp ? '▲' : '▼'} Need help with email server settings?
                 </button>
-
                 {showHelp && (
-                  <div className="help-content">
-                    <h4>How to find your email server settings</h4>
-                    <p>
-                      For custom email domains, you'll need to get these details
-                      from your email provider or IT department. Here are some
-                      common settings:
+                  <div
+                    className="help-content"
+                    style={{
+                      marginTop: "15px",
+                      padding: "15px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <h4 style={{ marginTop: 0, marginBottom: "15px", fontSize: "1rem" }}>
+                      How to find your email server settings
+                    </h4>
+                    <p style={{ marginTop: 0, marginBottom: "15px", lineHeight: 1.6 }}>
+                      For custom email domains, you'll need to get these details from your email provider or IT department. Here are some common settings:
                     </p>
-
-                    <div className="server-examples settings-stack-vertical">
-                      <div className="server-example settings-col-vertical">
-                        <h5>Common IMAP Settings</h5>
-                        <p><strong>Host:</strong> mail.yourdomain.com or imap.yourdomain.com</p>
-                        <p><strong>Port:</strong> 993 (SSL) or 143 (TLS)</p>
-                        <p><strong>Security:</strong> SSL/TLS or STARTTLS</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginBottom: "20px" }}>
+                      <div>
+                        <h5 style={{ marginTop: 0, marginBottom: "10px", fontSize: "0.9rem" }}>
+                          Common IMAP Settings
+                        </h5>
+                        <p style={{ margin: "5px 0", fontSize: "0.85rem" }}><strong>Host:</strong> mail.yourdomain.com or imap.yourdomain.com</p>
+                        <p style={{ margin: "5px 0", fontSize: "0.85rem" }}><strong>Port:</strong> 993 (SSL) or 143 (TLS)</p>
+                        <p style={{ margin: "5px 0", fontSize: "0.85rem" }}><strong>Security:</strong> SSL/TLS or STARTTLS</p>
                       </div>
-                      <div className="server-example settings-col-vertical">
-                        <h5>Common SMTP Settings</h5>
-                        <p><strong>Host:</strong> mail.yourdomain.com or smtp.yourdomain.com</p>
-                        <p><strong>Port:</strong> 465 (SSL) or 587 (TLS)</p>
-                        <p><strong>Security:</strong> SSL/TLS or STARTTLS</p>
+                      <div>
+                        <h5 style={{ marginTop: 0, marginBottom: "10px", fontSize: "0.9rem" }}>
+                          Common SMTP Settings
+                        </h5>
+                        <p style={{ margin: "5px 0", fontSize: "0.85rem" }}><strong>Host:</strong> mail.yourdomain.com or smtp.yourdomain.com</p>
+                        <p style={{ margin: "5px 0", fontSize: "0.85rem" }}><strong>Port:</strong> 465 (SSL) or 587 (TLS)</p>
+                        <p style={{ margin: "5px 0", fontSize: "0.85rem" }}><strong>Security:</strong> SSL/TLS or STARTTLS</p>
                       </div>
                     </div>
-
-                    <div className="common-providers">
-                      <h5>Common Providers Configuration</h5>
-                      <div className="provider-grid">
-                        <div className="provider-card">
-                          <h6>Microsoft 365/Exchange</h6>
-                          <p>IMAP: outlook.office365.com (993/SSL)</p>
-                          <p>SMTP: smtp.office365.com (587/STARTTLS)</p>
+                    <div>
+                      <h5 style={{ marginTop: 0, marginBottom: "10px", fontSize: "0.95rem" }}>
+                        Common Providers Configuration
+                      </h5>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "15px" }}>
+                        <div style={{ backgroundColor: "white", padding: "12px", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                          <h6 style={{ marginTop: 0, marginBottom: "8px", fontSize: "0.85rem" }}>
+                            Microsoft 365/Exchange
+                          </h6>
+                          <p style={{ margin: "4px 0", fontSize: "0.8rem" }}>IMAP: outlook.office365.com (993/SSL)</p>
+                          <p style={{ margin: "4px 0", fontSize: "0.8rem" }}>SMTP: smtp.office365.com (587/STARTTLS)</p>
                         </div>
-                        <div className="provider-card">
-                          <h6>Zoho Mail</h6>
-                          <p>IMAP: imap.zoho.com (993/SSL)</p>
-                          <p>SMTP: smtp.zoho.com (465/SSL)</p>
+                        <div style={{ backgroundColor: "white", padding: "12px", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                          <h6 style={{ marginTop: 0, marginBottom: "8px", fontSize: "0.85rem" }}>
+                            Zoho Mail
+                          </h6>
+                          <p style={{ margin: "4px 0", fontSize: "0.8rem" }}>IMAP: imap.zoho.com (993/SSL)</p>
+                          <p style={{ margin: "4px 0", fontSize: "0.8rem" }}>SMTP: smtp.zoho.com (465/SSL)</p>
                         </div>
-                        <div className="provider-card">
-                          <h6>Rackspace</h6>
-                          <p>IMAP: secure.emailsrvr.com (993/SSL)</p>
-                          <p>SMTP: secure.emailsrvr.com (465/SSL)</p>
-                        </div>
-                        <div className="provider-card">
-                          <h6>Yahoo Mail</h6>
-                          <p>IMAP: imap.mail.yahoo.com (993/SSL)</p>
-                          <p>SMTP: smtp.mail.yahoo.com (587/STARTTLS)</p>
+                        <div style={{ backgroundColor: "white", padding: "12px", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                          <h6 style={{ marginTop: 0, marginBottom: "8px", fontSize: "0.85rem" }}>
+                            Rackspace
+                          </h6>
+                          <p style={{ margin: "4px 0", fontSize: "0.8rem" }}>IMAP: secure.emailsrvr.com (993/SSL)</p>
+                          <p style={{ margin: "4px 0", fontSize: "0.8rem" }}>SMTP: secure.emailsrvr.com (465/SSL)</p>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-
             {/* Server Configuration */}
             <div className="form-section">
               <h3>Server Configuration</h3>
@@ -663,94 +668,7 @@ const EmailConfigForm: React.FC = () => {
             </div>
 
             {/* Configuration Help Section */}
-            <div className="config-help-section">
-              <button
-                type="button"
-                className="help-toggle"
-                onClick={() => setShowHelp(!showHelp)}
-                aria-expanded={showHelp}
-              >
-                {showHelp
-                  ? "Hide Configuration Help"
-                  : "Need Help? Click here for configuration instructions"}
-                <span className={`arrow ${showHelp ? "up" : "down"}`}>▼</span>
-              </button>
-
-              {showHelp && (
-                <div className="help-content">
-                  <h3>Required Information from Your Provider</h3>
-                  <p>
-                    Before configuring your email client, you'll need to obtain
-                    the following details from your email hosting provider:
-                  </p>
-
-                  <div className="help-columns">
-                    <div className="help-column">
-                      <h4>IMAP Settings:</h4>
-                      <ul>
-                        <li>
-                          <strong>IMAP Server/Host:</strong> Usually formatted
-                          as imap.yourdomain.com or imap.yourprovider.com
-                        </li>
-                        <li>
-                          <strong>IMAP Port:</strong> Typically 993 for SSL/TLS
-                          connections
-                        </li>
-                        <li>
-                          <strong>Security:</strong> SSL or TLS encryption
-                        </li>
-                        <li>
-                          <strong>Username:</strong> Your full email address
-                          (e.g., you@yourdomain.com)
-                        </li>
-                        <li>
-                          <strong>Password:</strong> Your email account password
-                        </li>
-                      </ul>
-                    </div>
-
-                    <div className="help-column">
-                      <h4>SMTP Settings:</h4>
-                      <ul>
-                        <li>
-                          <strong>SMTP Server/Host:</strong> Usually formatted
-                          as smtp.yourdomain.com or smtp.yourprovider.com
-                        </li>
-                        <li>
-                          <strong>SMTP Port:</strong> 465 for SSL or 587 for
-                          TLS/STARTTLS
-                        </li>
-                        <li>
-                          <strong>Security:</strong> SSL or TLS encryption
-                        </li>
-                        <li>
-                          <strong>Authentication:</strong> Required (use same
-                          username and password as IMAP)
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="help-tips">
-                    <h4>Tips:</h4>
-                    <ul>
-                      <li>
-                        For Gmail, enable "Less secure app access" or use an App
-                        Password if 2FA is enabled
-                      </li>
-                      <li>
-                        For Office 365, your username is typically your full
-                        email address
-                      </li>
-                      <li>
-                        If using a custom domain, check with your hosting
-                        provider for specific settings
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
+              {/* Removed any button or section labeled 'Need Help?' or similar help section from the JSX. */}
 
             {/* Form Submission */}
             <div className="form-actions">
@@ -761,6 +679,7 @@ const EmailConfigForm: React.FC = () => {
               >
                 {isSubmitting ? "Saving..." : "Save Configuration"}
               </button>
+              </div>
             </div>
           </form>
         </div>

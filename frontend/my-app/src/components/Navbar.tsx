@@ -23,27 +23,33 @@ const Navbar: React.FC = () => {
         <Link to="/" className="logo">
           Email Automation
         </Link>
-        <button className="hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation">
+      </div>
+      <div className="navbar-right">
+        <div className="navbar-links-and-logout">
+          <div className="navbar-links">
+            {isAuthenticated ? (
+              <>
+                <button className="nav-link" onClick={() => handleNavClick('/login')}>Create Campaign</button>
+                <Link to="/unread-emails" className="nav-link">Email Auto Reply</Link>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="nav-link">Login</Link>
+                <Link to="/register" className="btn btn-primary">Register</Link>
+              </>
+            )}
+          </div>
+          {isAuthenticated && (
+            <button className="logout-btn always-right" onClick={logout}>
+              Logout
+            </button>
+          )}
+        </div>
+        <button className="hamburger right" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation">
           <span className="bar"></span>
           <span className="bar"></span>
           <span className="bar"></span>
         </button>
-      </div>
-      <div className={`navbar-links${menuOpen ? ' open' : ''}`}>
-        {isAuthenticated ? (
-          <>
-            <button className="nav-link" onClick={() => handleNavClick('/login')}>Create Campaign</button>
-            <Link to="/unread-emails" className="nav-link">Email Auto Reply</Link>
-            <button className="logout-btn" onClick={logout}>
-              Logout
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" className="nav-link">Login</Link>
-            <Link to="/register" className="btn btn-primary">Register</Link>
-          </>
-        )}
       </div>
     </nav>
   );

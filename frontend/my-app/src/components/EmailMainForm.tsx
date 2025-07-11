@@ -78,8 +78,15 @@ function EmailMainForm() {
   const totalSteps = 3;
   
   const isCustomProvider = formData.provider === "other";
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const navigate = useNavigate();
+
+  // Autofill email with logged-in user's email
+  useEffect(() => {
+    if (user && user.email) {
+      setFormData((prev) => ({ ...prev, email: user.email }));
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!isCustomProvider) {
@@ -439,8 +446,6 @@ function EmailMainForm() {
                 onChange={handleProviderChange}
               >
                 <option value="gmail">Gmail</option>
-                <option value="outlook">Outlook/Office 365</option>
-                <option value="yahoo">Yahoo Mail</option>
                 <option value="other">Other IMAP/SMTP</option>
               </select>
             </div>
@@ -827,19 +832,21 @@ function EmailMainForm() {
                 fileNames.length > 0 ? "has-files" : ""
               }`}
             >
-              <div className="file-upload-box">
-                <p>Drag & drop files here or click to browse</p>
-                <input
-                  type="file"
-                  id="file-upload"
-                  multiple
-                  onChange={handleFileChange}
-                  style={{ fontFamily: 'Inter, Arial, sans-serif', fontSize: '1rem' }}
-                />
-                <label htmlFor="file-upload" className="btn btn-outline">
-                  Select Files
-                </label>
-              </div>
+              {/* Only one file input styled as a button */}
+              <input
+                type="file"
+                id="file-upload"
+                multiple
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => document.getElementById('file-upload')?.click()}
+              >
+                Select Files
+              </button>
               {fileNames.length > 0 && (
                 <div className="file-list">
                   <h4>Selected Files:</h4>

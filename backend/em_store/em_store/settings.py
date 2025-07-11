@@ -148,21 +148,24 @@ AWS_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = os.getenv('R2_BUCKET_NAME', 'email-autoamation')
 AWS_S3_ENDPOINT_URL = os.getenv('R2_ENDPOINT_URL', 'https://4d4c294f4e40b9cb08edf870ed60b046.r2.cloudflarestorage.com')
-AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com'
+AWS_S3_CUSTOM_DOMAIN = os.getenv('R2_CUSTOM_DOMAIN', f'{AWS_STORAGE_BUCKET_NAME}.r2.cloudflarestorage.com')
 AWS_DEFAULT_ACL = 'public-read'
 AWS_QUERYSTRING_AUTH = False
 AWS_S3_FILE_OVERWRITE = False
 AWS_S3_OBJECT_PARAMETERS = {
     'CacheControl': 'max-age=86400',
 }
+# Additional R2 settings for better compatibility
+AWS_S3_VERIFY = True
+AWS_S3_REGION_NAME = 'auto'
 
-# Storage configuration - Use R2 for media files, keep static files local
+# Storage configuration - Use R2 for all files (media and static)
 STORAGES = {
     'default': {
         'BACKEND': 'em_store.storage_backends.R2MediaStorage',
     },
     'staticfiles': {
-        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        'BACKEND': 'em_store.storage_backends.R2StaticStorage',
     },
 }
 
